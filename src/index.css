@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+}
+
+/* Custom 3D Neumorphic and Cyberpunk Accents */
+.card-3d {
+  background: linear-gradient(145deg, #161722, #11121a);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 6px 6px 14px #07070b, -6px -6px 14px #1b1c2a;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-3d:hover {
+  transform: translateY(-4px);
+  border-color: rgba(0, 242, 234, 0.25);
+  box-shadow: 0 12px 24px -6px rgba(0, 242, 234, 0.15), 8px 8px 18px #07070b, -8px -8px 18px #1b1c2a;
+}
+
+.card-3d:active {
+  transform: scale(0.97);
+  box-shadow: inset 4px 4px 8px #07070b, inset -4px -4px 8px #1b1c2a;
+}
+
+.btn-3d-cyan {
+  background: linear-gradient(135deg, #00f2ea 0%, #00b4d8 100%);
+  color: #030a10;
+  box-shadow: 0 6px 16px rgba(0, 242, 234, 0.35), inset 0 2px 2px rgba(255, 255, 255, 0.6);
+  transition: all 0.2s ease;
+}
+
+.btn-3d-cyan:hover {
+  box-shadow: 0 8px 22px rgba(0, 242, 234, 0.5), inset 0 2px 2px rgba(255, 255, 255, 0.8);
+  filter: brightness(1.05);
+}
+
+.btn-3d-cyan:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 8px rgba(0, 242, 234, 0.3);
+}
+
+.btn-3d-pink {
+  background: linear-gradient(135deg, #ff0055 0%, #ff4b72 100%);
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(255, 0, 85, 0.4), inset 0 2px 2px rgba(255, 255, 255, 0.4);
+  transition: all 0.2s ease;
+}
+
+.btn-3d-pink:hover {
+  box-shadow: 0 8px 22px rgba(255, 0, 85, 0.6), inset 0 2px 2px rgba(255, 255, 255, 0.6);
+  filter: brightness(1.05);
+}
+
+.btn-3d-pink:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 8px rgba(255, 0, 85, 0.3);
+}
+
+.inner-shadow-inset {
+  box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.8);
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(0, 242, 234, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(0, 242, 234, 0.6);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s infinite ease-in-out;
+}
+
