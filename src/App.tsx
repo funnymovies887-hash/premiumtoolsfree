@@ -102,6 +102,10 @@ export default function App() {
   useEffect(() => {
     const isAdmin = currentView === 'admin' || checkIsAdminUrl();
     (window as any).__IS_ADMIN_MODE = isAdmin;
+    if (typeof document !== 'undefined') {
+      document.body?.classList.toggle('in-admin-mode', isAdmin);
+      document.documentElement?.classList.toggle('in-admin-mode', isAdmin);
+    }
   }, [currentView]);
 
   // Listen to browser history changes (back/forward & hash changes)

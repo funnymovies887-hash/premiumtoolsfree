@@ -112,8 +112,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Set global Admin Mode flag while AdminPanel is mounted to prevent any popunders/ads
   useEffect(() => {
     (window as any).__IS_ADMIN_MODE = true;
+    document.body?.classList.add('in-admin-mode');
+    document.documentElement?.classList.add('in-admin-mode');
     return () => {
       (window as any).__IS_ADMIN_MODE = false;
+      document.body?.classList.remove('in-admin-mode');
+      document.documentElement?.classList.remove('in-admin-mode');
     };
   }, []);
 

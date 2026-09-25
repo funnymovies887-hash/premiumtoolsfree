@@ -76,3 +76,16 @@
   animation: pulse-glow 2s infinite ease-in-out;
 }
 
+/* Shield Admin Panel from any injected 3rd-party ad elements or floating overlays */
+html.in-admin-mode body > :not(#root):not(script):not(style),
+body.in-admin-mode > :not(#root):not(script):not(style) {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  clip: rect(0, 0, 0, 0) !important;
+}
+
+
