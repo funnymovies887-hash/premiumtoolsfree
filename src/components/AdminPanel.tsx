@@ -109,6 +109,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // High-visibility Save Confirmation Alert Banner
   const [saveNotice, setSaveNotice] = useState<{ title: string; detail: string } | null>(null);
 
+  // Set global Admin Mode flag while AdminPanel is mounted to prevent any popunders/ads
+  useEffect(() => {
+    (window as any).__IS_ADMIN_MODE = true;
+    return () => {
+      (window as any).__IS_ADMIN_MODE = false;
+    };
+  }, []);
+
   const triggerSaveNotice = (title: string, detail: string) => {
     setSaveNotice({ title, detail });
     setTimeout(() => {
@@ -285,7 +293,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // If not authenticated, show standalone full-page password gate
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen w-full bg-[#0a0b14] text-white flex flex-col items-center justify-center p-4 relative overflow-hidden">
+      <div 
+        id="admin-panel-root"
+        data-admin-panel="true"
+        onClick={(e) => e.stopPropagation()}
+        className="min-h-screen w-full bg-[#0a0b14] text-white flex flex-col items-center justify-center p-4 relative overflow-hidden"
+      >
         {/* Glow ambient background */}
         <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[450px] h-[450px] bg-cyan-500/10 rounded-full blur-[100px] pointer-events-none" />
 
@@ -356,7 +369,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   }
 
   return (
-    <div className="min-h-screen w-full bg-[#0a0b14] text-white flex flex-col selection:bg-cyan-500 selection:text-black">
+    <div 
+      id="admin-panel-root"
+      data-admin-panel="true"
+      onClick={(e) => e.stopPropagation()}
+      className="min-h-screen w-full bg-[#0a0b14] text-white flex flex-col selection:bg-cyan-500 selection:text-black"
+    >
       {/* Top Dedicated Admin Navbar */}
       <header className="sticky top-0 z-40 w-full border-b border-white/10 bg-[#121320]/95 backdrop-blur-md px-4 sm:px-8 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3">

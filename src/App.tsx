@@ -75,6 +75,7 @@ export default function App() {
   // Route switcher with real URL path synchronization
   const navigateTo = (view: 'store' | 'admin') => {
     setCurrentView(view);
+    (window as any).__IS_ADMIN_MODE = (view === 'admin');
     if (view === 'store') {
       setIsAuthenticatedState(false);
       setAdminAuthenticated(false);
@@ -96,6 +97,12 @@ export default function App() {
       window.history.pushState({}, '', url.toString());
     }
   };
+
+  // Synchronize global Admin Mode state for ad blocking shield
+  useEffect(() => {
+    const isAdmin = currentView === 'admin' || checkIsAdminUrl();
+    (window as any).__IS_ADMIN_MODE = isAdmin;
+  }, [currentView]);
 
   // Listen to browser history changes (back/forward & hash changes)
   useEffect(() => {
