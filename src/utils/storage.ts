@@ -8,10 +8,12 @@ export const DEFAULT_ADMIN_PASSWORD = initialDb?.siteSettings?.adminPassword || 
 
 export const DEFAULT_GITHUB_SETTINGS: GitHubSettings = {
   token: (initialDb?.siteSettings as any)?.githubSettings?.token || '',
-  owner: (initialDb?.siteSettings as any)?.githubSettings?.owner || '',
-  repo: (initialDb?.siteSettings as any)?.githubSettings?.repo || '',
+  owner: (initialDb?.siteSettings as any)?.githubSettings?.owner || 'funnymovies887-hash',
+  repo: (initialDb?.siteSettings as any)?.githubSettings?.repo || 'premiumtoolsfree',
   branch: (initialDb?.siteSettings as any)?.githubSettings?.branch || 'main',
   autoSync: (initialDb?.siteSettings as any)?.githubSettings?.autoSync ?? true,
+  lastSyncedAt: (initialDb?.siteSettings as any)?.githubSettings?.lastSyncedAt,
+  lastSyncStatus: (initialDb?.siteSettings as any)?.githubSettings?.lastSyncStatus || 'idle',
 };
 
 export const DEFAULT_AD_SETTINGS: AdSettings = {
@@ -34,6 +36,7 @@ export const DEFAULT_AD_SETTINGS: AdSettings = {
 export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   siteTitle: initialDb?.siteSettings?.siteTitle || "PREMIUM STORE",
   siteSubtitle: initialDb?.siteSettings?.siteSubtitle || "100% Working Apps & Tools Download",
+  siteLogo: initialDb?.siteSettings?.siteLogo || "",
   telegramChannel: initialDb?.siteSettings?.telegramChannel || "https://t.me/premiumtoolsfree1",
   announcement: initialDb?.siteSettings?.announcement || "🔥 New Premium Tools Added! Join our Telegram Channel for direct updates & instant software keys.",
   adminPassword: initialDb?.siteSettings?.adminPassword || DEFAULT_ADMIN_PASSWORD,
@@ -262,7 +265,19 @@ export function getSiteSettings(): SiteSettings {
       saveSiteSettings(DEFAULT_SITE_SETTINGS);
       return DEFAULT_SITE_SETTINGS;
     }
-    return { ...DEFAULT_SITE_SETTINGS, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    const mergedGithub: GitHubSettings = {
+      ...DEFAULT_GITHUB_SETTINGS,
+      ...(parsed.githubSettings || {}),
+    };
+    if (!mergedGithub.token && DEFAULT_GITHUB_SETTINGS.token) {
+      mergedGithub.token = DEFAULT_GITHUB_SETTINGS.token;
+      mergedGithub.owner = DEFAULT_GITHUB_SETTINGS.owner;
+      mergedGithub.repo = DEFAULT_GITHUB_SETTINGS.repo;
+      mergedGithub.branch = DEFAULT_GITHUB_SETTINGS.branch;
+      mergedGithub.autoSync = DEFAULT_GITHUB_SETTINGS.autoSync;
+    }
+    return { ...DEFAULT_SITE_SETTINGS, ...parsed, githubSettings: mergedGithub };
   } catch (err) {
     console.error("Error reading site settings from storage", err);
     return DEFAULT_SITE_SETTINGS;
