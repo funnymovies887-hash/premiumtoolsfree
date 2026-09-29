@@ -46,6 +46,7 @@ export interface GitHubSettings {
 export interface SiteSettings {
   siteTitle: string;
   siteSubtitle: string;
+  siteLogo?: string;
   telegramChannel: string;
   announcement: string;
   adminPassword: string;
