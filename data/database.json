@@ -28,7 +28,7 @@
       "mainContentUrl": "https://t.me/premiumtoolsfree1",
       "timerSeconds": 30,
       "downloadsCount": 28940,
-      "rating": 5.0,
+      "rating": 5,
       "isFeatured": true,
       "createdAt": 1726786400000
     },
@@ -75,7 +75,7 @@
       "mainContentUrl": "https://t.me/premiumtoolsfree1",
       "timerSeconds": 30,
       "downloadsCount": 52100,
-      "rating": 5.0,
+      "rating": 5,
       "isFeatured": true,
       "createdAt": 1727045600000
     },
@@ -145,8 +145,17 @@
     "siteTitle": "PREMIUM STORE",
     "siteSubtitle": "100% Working Apps & Tools Download",
     "telegramChannel": "https://t.me/premiumtoolsfree1",
-    "announcement": "🔥 New Premium Tools Added! Join our Telegram Channel for direct updates & instant software keys.",
-    "adminPassword": "Aa123456@"
+    "announcement": "\ud83d\udd25 New Premium Tools Added! Join our Telegram Channel for direct updates & instant software keys.",
+    "adminPassword": "Aa123456@",
+    "githubSettings": {
+      "token": "",
+      "owner": "funnymovies887-hash",
+      "repo": "premiumtoolsfree",
+      "branch": "main",
+      "autoSync": true,
+      "lastSyncedAt": 1790670304158,
+      "lastSyncStatus": "success"
+    }
   },
-  "updatedAt": 1727304800000
+  "updatedAt": 1790670304159
 }
