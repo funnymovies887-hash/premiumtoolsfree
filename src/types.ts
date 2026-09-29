@@ -32,10 +32,22 @@ export interface AdSettings {
   enableImpressionBoost: boolean;
 }
 
+export interface GitHubSettings {
+  token: string;
+  owner: string;
+  repo: string;
+  branch: string;
+  autoSync: boolean;
+  lastSyncedAt?: number;
+  lastSyncStatus?: 'success' | 'error' | 'idle';
+  lastSyncMessage?: string;
+}
+
 export interface SiteSettings {
   siteTitle: string;
   siteSubtitle: string;
   telegramChannel: string;
   announcement: string;
   adminPassword: string;
+  githubSettings?: GitHubSettings;
 }

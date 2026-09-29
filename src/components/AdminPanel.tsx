@@ -25,10 +25,12 @@ import {
   HelpCircle,
   ArrowLeft,
   Globe,
-  RotateCcw
+  RotateCcw,
+  Github,
+  GitBranch
 } from 'lucide-react';
-import { AppItem, AdSettings, SiteSettings } from '../types';
-import { saveAllToServer } from '../utils/storage';
+import { AppItem, AdSettings, SiteSettings, GitHubSettings } from '../types';
+import { saveAllToServer, testGitHubConnection, syncToGitHub } from '../utils/storage';
 
 interface AdminPanelProps {
   isOpen?: boolean;
@@ -63,11 +65,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [loginError, setLoginError] = useState('');
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<'apps' | 'monetization' | 'site' | 'backup'>('apps');
+  const [activeTab, setActiveTab] = useState<'apps' | 'monetization' | 'site' | 'github' | 'backup'>('apps');
 
   // Draft working states for Monetization and Site settings to detect changes
   const [draftAdSettings, setDraftAdSettings] = useState<AdSettings>(adSettings);
   const [draftSiteSettings, setDraftSiteSettings] = useState<SiteSettings>(siteSettings);
+
+  // GitHub integration states
+  const [isTestingGitHub, setIsTestingGitHub] = useState(false);
+  const [gitHubTestResult, setGitHubTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [isSyncingGitHub, setIsSyncingGitHub] = useState(false);
+  const [gitHubSyncSuccess, setGitHubSyncSuccess] = useState(false);
+  const [showPatToken, setShowPatToken] = useState(false);
 
   // Sync draft states whenever props change from outside (e.g. on initial mount or backup restore)
   useEffect(() => {
@@ -334,6 +343,89 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
+  // GitHub integration handlers
+  const handleTestGitHub = async () => {
+    const gh = draftSiteSettings.githubSettings;
+    if (!gh || !gh.token || !gh.owner || !gh.repo) {
+      setGitHubTestResult({
+        success: false,
+        message: 'Please provide GitHub Token (PAT), Owner (Username), and Repository Name.',
+      });
+      return;
+    }
+    setIsTestingGitHub(true);
+    setGitHubTestResult(null);
+    const res = await testGitHubConnection(gh);
+    setIsTestingGitHub(false);
+    setGitHubTestResult(res);
+  };
+
+  const handleSaveGitHubSettings = () => {
+    setIsSavingSite(true);
+    setSiteSettings(draftSiteSettings);
+    saveAllToServer({ siteSettings: draftSiteSettings });
+    setIsSavingSite(false);
+    setSiteSaveFeedback(true);
+    setTimeout(() => setSiteSaveFeedback(false), 2500);
+    triggerSaveNotice(
+      'GitHub Settings Saved!',
+      'Your GitHub PAT, repository details, and auto-sync preferences have been permanently saved.'
+    );
+  };
+
+  const handleDirectGitHubSync = async () => {
+    const gh = draftSiteSettings.githubSettings;
+    if (!gh || !gh.token || !gh.owner || !gh.repo) {
+      setActiveTab('github');
+      setGitHubTestResult({
+        success: false,
+        message: 'GitHub is not configured yet. Please enter your GitHub PAT & Repository details here first.',
+      });
+      return;
+    }
+
+    setIsSyncingGitHub(true);
+    setGitHubSyncSuccess(false);
+
+    // First ensure latest draft changes are saved to server
+    await saveAllToServer({
+      apps,
+      adSettings: draftAdSettings,
+      siteSettings: draftSiteSettings,
+    });
+
+    const res = await syncToGitHub(gh);
+    setIsSyncingGitHub(false);
+
+    if (res.success) {
+      setGitHubSyncSuccess(true);
+      setTimeout(() => setGitHubSyncSuccess(false), 3500);
+      const updatedSite: SiteSettings = {
+        ...draftSiteSettings,
+        githubSettings: {
+          ...gh,
+          lastSyncedAt: res.timestamp || Date.now(),
+          lastSyncStatus: 'success',
+        },
+      };
+      setDraftSiteSettings(updatedSite);
+      setSiteSettings(updatedSite);
+      triggerSaveNotice(
+        'Synced to GitHub Successfully!',
+        `Latest apps, monetization & database.json pushed to https://github.com/${gh.owner}/${gh.repo}`
+      );
+    } else {
+      triggerSaveNotice(
+        'GitHub Sync Failed',
+        res.message || 'Could not push to GitHub. Verify your PAT permissions.'
+      );
+      setGitHubTestResult({
+        success: false,
+        message: res.message || 'GitHub sync failed. Please verify your token and repo name.',
+      });
+    }
+  };
+
   // If not authenticated, show standalone full-page password gate
   if (!isAuthenticated) {
     return (
@@ -476,6 +568,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             )}
           </button>
 
+          {/* 1-Click Push to GitHub Button */}
+          <button
+            onClick={handleDirectGitHubSync}
+            disabled={isSyncingGitHub}
+            className="px-3 sm:px-3.5 py-2 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-300 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
+            title="1-Click push and commit all apps & database directly to GitHub repository"
+          >
+            {isSyncingGitHub ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400" />
+                <span className="hidden md:inline">Pushing to GitHub...</span>
+              </>
+            ) : gitHubSyncSuccess ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-300" />
+                <span className="hidden md:inline">Pushed to GitHub!</span>
+              </>
+            ) : (
+              <>
+                <Github className="w-3.5 h-3.5 text-purple-400" />
+                <span className="hidden md:inline">Sync to GitHub</span>
+                <span className="md:hidden">GitHub</span>
+              </>
+            )}
+          </button>
+
           <button
             onClick={() => {
               setIsAuthenticated(false);
@@ -530,7 +648,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         )}
 
         {/* Quick Overview KPI Strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
           <div className="p-3.5 sm:p-4 rounded-2xl bg-[#121320] border border-white/5 flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center font-bold">
               <LayoutGrid className="w-5 h-5" />
@@ -558,9 +676,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <Send className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[11px] text-slate-400 uppercase font-semibold">Telegram Channel</p>
-              <p className="text-xs sm:text-sm font-bold text-blue-400 truncate max-w-[120px]">
+              <p className="text-[11px] text-slate-400 uppercase font-semibold">Telegram</p>
+              <p className="text-xs sm:text-sm font-bold text-blue-400 truncate max-w-[100px]">
                 {siteSettings.telegramChannel ? 'Connected' : 'Not set'}
+              </p>
+            </div>
+          </div>
+
+          {/* GitHub Integration KPI */}
+          <div 
+            onClick={() => setActiveTab('github')}
+            className="p-3.5 sm:p-4 rounded-2xl bg-[#121320] border border-white/5 hover:border-purple-500/40 flex items-center gap-3 cursor-pointer transition-all"
+            title="Click to configure GitHub PAT & repository"
+          >
+            <div className="h-10 w-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center font-bold">
+              <Github className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-[11px] text-slate-400 uppercase font-semibold">GitHub PAT Sync</p>
+              <p className="text-xs sm:text-sm font-bold text-purple-300 truncate max-w-[110px]">
+                {draftSiteSettings.githubSettings?.token && draftSiteSettings.githubSettings?.repo
+                  ? `${draftSiteSettings.githubSettings.owner || 'repo'}`
+                  : 'Configure'}
               </p>
             </div>
           </div>
@@ -571,7 +708,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
             <div>
               <p className="text-[11px] text-slate-400 uppercase font-semibold">Security Gate</p>
-              <p className="text-xs sm:text-sm font-bold text-amber-400">Private URL Protected</p>
+              <p className="text-xs sm:text-sm font-bold text-amber-400">Protected</p>
             </div>
           </div>
         </div>
@@ -581,7 +718,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           <div className="flex items-center gap-2.5">
             <Database className="w-4 h-4 text-cyan-400 shrink-0" />
             <span>
-              <strong>Server Database Synced:</strong> All apps, direct ad links, and settings are saved to permanent server storage (<code className="text-cyan-300 bg-cyan-900/50 px-1.5 py-0.5 rounded">data/database.json</code>). Changes will not be lost when code updates or page reloads.
+              <strong>Server Database Synced:</strong> All apps, direct ad links, and settings are saved to permanent server storage (<code className="text-cyan-300 bg-cyan-900/50 px-1.5 py-0.5 rounded">data/database.json</code> &amp; <code className="text-cyan-300 bg-cyan-900/50 px-1.5 py-0.5 rounded">src/data/database.json</code>). Changes will never be lost on refresh.
             </span>
           </div>
           <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400 bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-500/30 shrink-0">
@@ -628,6 +765,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             >
               <Settings className="w-4 h-4" />
               <span>Telegram & Site Config</span>
+            </button>
+
+            {/* GitHub PAT & Sync Tab Button */}
+            <button
+              onClick={() => setActiveTab('github')}
+              className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold rounded-t-xl transition-colors whitespace-nowrap cursor-pointer ${
+                activeTab === 'github'
+                  ? 'bg-[#121320] text-purple-400 border-t-2 border-purple-400'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Github className="w-4 h-4 text-purple-400" />
+              <span>GitHub PAT &amp; Sync</span>
+              {draftSiteSettings.githubSettings?.token ? (
+                <span className="w-2 h-2 rounded-full bg-emerald-400" title="PAT Configured" />
+              ) : (
+                <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded font-normal">
+                  Setup
+                </span>
+              )}
             </button>
 
             <button
@@ -1183,6 +1340,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               </div>
 
+              {/* GitHub Quick Link Banner inside Site Config */}
+              <div className="p-4 rounded-xl bg-purple-950/40 border border-purple-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
+                    <Github className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-white">GitHub PAT &amp; Repository Synchronization</p>
+                    <p className="text-[11px] text-purple-200/80">
+                      {draftSiteSettings.githubSettings?.token
+                        ? `Connected to ${draftSiteSettings.githubSettings.owner}/${draftSiteSettings.githubSettings.repo}`
+                        : 'Configure your Personal Access Token to auto-commit apps to your GitHub repo'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('github')}
+                  className="px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold cursor-pointer shrink-0 self-start sm:self-center transition-colors"
+                >
+                  Open GitHub Settings &rarr;
+                </button>
+              </div>
+
               {/* Save Button with Dynamic Dirty / Clean States */}
               <div className="pt-2 flex items-center gap-4">
                 {isSiteDirty ? (
@@ -1226,6 +1407,341 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     Discard Changes
                   </button>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB: GITHUB PAT & SYNC INTEGRATION */}
+          {activeTab === 'github' && (
+            <div className="space-y-6 max-w-3xl">
+              {/* Header Box */}
+              <div className="p-6 rounded-2xl bg-gradient-to-br from-[#161729] via-[#151329] to-[#121320] border border-purple-500/30 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 text-white flex items-center justify-center font-bold shadow-lg shadow-purple-500/30 shrink-0">
+                      <Github className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-bold text-white">GitHub PAT &amp; Auto-Sync Integration</h3>
+                        {draftSiteSettings.githubSettings?.token ? (
+                          <span className="text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                            Connected
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                            PAT Required
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-purple-200/80 mt-0.5">
+                        GitHub Personal Access Token (PAT) ব্যবহার করে সরাসরি আপনার রিপোজিটরিতে ডেটাবেজ সেভ ও সিঙ্ক করুন।
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={handleDirectGitHubSync}
+                      disabled={isSyncingGitHub || !draftSiteSettings.githubSettings?.token}
+                      className="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-md shadow-purple-600/30"
+                    >
+                      {isSyncingGitHub ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Pushing to GitHub...</span>
+                        </>
+                      ) : gitHubSyncSuccess ? (
+                        <>
+                          <Check className="w-4 h-4 text-emerald-300" />
+                          <span>Pushed to GitHub!</span>
+                        </>
+                      ) : (
+                        <>
+                          <GitBranch className="w-4 h-4" />
+                          <span>1-Click Sync to GitHub</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Explanation text in Bengali */}
+                <div className="p-4 rounded-xl bg-purple-950/40 border border-purple-500/20 text-xs text-purple-200/90 leading-relaxed space-y-2">
+                  <p>
+                    <strong>কীভাবে কাজ করে?</strong> আপনি যখন অ্যাডমিন প্যানেল থেকে কোনো নতুন App যোগ করবেন, এডিট করবেন কিংবা ডিলিট করবেন, তখন তা আপনার ব্রাউজার ও লোকাল সার্ভারের পাশাপাশি সরাসরি আপনার GitHub রিপোজিটরির <code className="bg-purple-900/60 text-purple-200 px-1.5 py-0.5 rounded">src/data/database.json</code> ফাইলে অটোমেটিক কমিট হয়ে যাবে। ফলে আপনার রিপোজিটরি ও লাইভ সাইট সবসময় ১০০% আপ-টু-ডেট থাকবে।
+                  </p>
+                </div>
+              </div>
+
+              {/* Step-by-Step Guide: How to get PAT */}
+              <div className="p-5 rounded-2xl bg-[#141524] border border-white/5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-purple-400 flex items-center gap-2">
+                    <HelpCircle className="w-4 h-4" />
+                    <span>How to get GitHub Personal Access Token (PAT) (৩০ সেকেন্ডে তৈরি করুন)</span>
+                  </h4>
+                  <a
+                    href="https://github.com/settings/tokens/new?scopes=repo&description=AppStoreSync"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-cyan-400 hover:underline flex items-center gap-1 font-semibold"
+                  >
+                    <span>Open GitHub Token Creator</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+                <ol className="text-xs text-slate-300 space-y-1.5 list-decimal list-inside leading-relaxed">
+                  <li><a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">GitHub Settings &rarr; Developer Settings &rarr; Personal access tokens &rarr; Tokens (classic)</a>-এ যান।</li>
+                  <li><strong>Generate new token (classic)</strong>-এ ক্লিক করুন।</li>
+                  <li>Note-এ যেকোনো নাম দিন (যেমন: <code className="text-cyan-300 bg-white/5 px-1 rounded">AppStoreSync</code>) এবং স্কোপ থেকে <strong><code className="text-emerald-300 bg-emerald-950/60 px-1 rounded">repo</code> (Full control of private repositories)</strong> বক্সে টিক দিন।</li>
+                  <li>নিচে <strong>Generate token</strong> বাটনে ক্লিক করে টোকেনটি (যেমন: <code className="text-purple-300 bg-purple-950/60 px-1 rounded">ghp_...</code>) কপি করে নিচের বক্সে পেস্ট করুন।</li>
+                </ol>
+              </div>
+
+              {/* GitHub Credentials Form */}
+              <div className="p-6 rounded-2xl bg-[#141524] border border-white/5 space-y-5">
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Settings className="w-4 h-4 text-purple-400" />
+                  <span>GitHub Repository Connection Settings</span>
+                </h4>
+
+                {/* GitHub PAT Input */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                    <span>1. GitHub Personal Access Token (PAT) *</span>
+                    <span className="text-[11px] text-slate-400 font-normal">Starts with `ghp_` or `github_pat_`</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPatToken ? 'text' : 'password'}
+                      value={draftSiteSettings.githubSettings?.token || ''}
+                      onChange={(e) => {
+                        const token = e.target.value.trim();
+                        setDraftSiteSettings((prev) => ({
+                          ...prev,
+                          githubSettings: {
+                            ...(prev.githubSettings || { owner: '', repo: '', branch: 'main', autoSync: true }),
+                            token,
+                          },
+                        }));
+                        setGitHubTestResult(null);
+                      }}
+                      placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                      className="w-full px-4 py-3 pr-12 rounded-xl bg-[#0e0f18] border border-white/10 focus:border-purple-400 text-sm text-white placeholder-slate-500 font-mono outline-none transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPatToken(!showPatToken)}
+                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-white cursor-pointer"
+                      title={showPatToken ? 'Hide PAT' : 'Show PAT'}
+                    >
+                      {showPatToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* GitHub Owner */}
+                  <div className="space-y-1.5 sm:col-span-1">
+                    <label className="text-xs font-semibold text-slate-300">
+                      2. GitHub Username / Org *
+                    </label>
+                    <input
+                      type="text"
+                      value={draftSiteSettings.githubSettings?.owner || ''}
+                      onChange={(e) => {
+                        const owner = e.target.value.trim();
+                        setDraftSiteSettings((prev) => ({
+                          ...prev,
+                          githubSettings: {
+                            ...(prev.githubSettings || { token: '', repo: '', branch: 'main', autoSync: true }),
+                            owner,
+                          },
+                        }));
+                        setGitHubTestResult(null);
+                      }}
+                      placeholder="e.g. funnymovies887"
+                      className="w-full px-4 py-2.5 rounded-xl bg-[#0e0f18] border border-white/10 focus:border-purple-400 text-sm text-white placeholder-slate-500 outline-none transition-colors"
+                    />
+                  </div>
+
+                  {/* GitHub Repo Name */}
+                  <div className="space-y-1.5 sm:col-span-1">
+                    <label className="text-xs font-semibold text-slate-300">
+                      3. Repository Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={draftSiteSettings.githubSettings?.repo || ''}
+                      onChange={(e) => {
+                        const repo = e.target.value.trim();
+                        setDraftSiteSettings((prev) => ({
+                          ...prev,
+                          githubSettings: {
+                            ...(prev.githubSettings || { token: '', owner: '', branch: 'main', autoSync: true }),
+                            repo,
+                          },
+                        }));
+                        setGitHubTestResult(null);
+                      }}
+                      placeholder="e.g. my-app-store"
+                      className="w-full px-4 py-2.5 rounded-xl bg-[#0e0f18] border border-white/10 focus:border-purple-400 text-sm text-white placeholder-slate-500 outline-none transition-colors"
+                    />
+                  </div>
+
+                  {/* Branch */}
+                  <div className="space-y-1.5 sm:col-span-1">
+                    <label className="text-xs font-semibold text-slate-300">
+                      4. Branch
+                    </label>
+                    <input
+                      type="text"
+                      value={draftSiteSettings.githubSettings?.branch || 'main'}
+                      onChange={(e) => {
+                        const branch = e.target.value.trim() || 'main';
+                        setDraftSiteSettings((prev) => ({
+                          ...prev,
+                          githubSettings: {
+                            ...(prev.githubSettings || { token: '', owner: '', repo: '', autoSync: true }),
+                            branch,
+                          },
+                        }));
+                      }}
+                      placeholder="main"
+                      className="w-full px-4 py-2.5 rounded-xl bg-[#0e0f18] border border-white/10 focus:border-purple-400 text-sm text-white placeholder-slate-500 outline-none transition-colors"
+                    />
+                  </div>
+                </div>
+
+                {/* Auto Sync Checkbox */}
+                <div className="pt-2 border-t border-white/5">
+                  <label className="flex items-start gap-3 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={draftSiteSettings.githubSettings?.autoSync ?? true}
+                      onChange={(e) => {
+                        const autoSync = e.target.checked;
+                        setDraftSiteSettings((prev) => ({
+                          ...prev,
+                          githubSettings: {
+                            ...(prev.githubSettings || { token: '', owner: '', repo: '', branch: 'main' }),
+                            autoSync,
+                          },
+                        }));
+                      }}
+                      className="mt-1 w-4 h-4 rounded text-purple-600 focus:ring-purple-500 border-gray-700 bg-gray-900 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-white group-hover:text-purple-300 transition-colors">
+                        Auto-Sync on Every Change (স্বয়ংক্রিয় সিঙ্ক)
+                      </span>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        অ্যাডমিন প্যানেল থেকে যেকোনো App যোগ, এডিট বা ডিলিট হওয়ার সাথে সাথে ব্যাকগ্রাউন্ডে স্বয়ংক্রিয়ভাবে GitHub রিপোজিটরিতে পুশ হয়ে যাবে। আলাদা করে কোনো কিছু করার প্রয়োজন হবে না।
+                      </p>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Test Feedback Notice */}
+                {gitHubTestResult && (
+                  <div
+                    className={`p-3.5 rounded-xl border text-xs flex items-start gap-2.5 ${
+                      gitHubTestResult.success
+                        ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-200'
+                        : 'bg-red-950/60 border-red-500/40 text-red-200'
+                    }`}
+                  >
+                    {gitHubTestResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                    )}
+                    <div>
+                      <p className="font-semibold">{gitHubTestResult.message}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex flex-wrap items-center gap-3 pt-3">
+                  <button
+                    onClick={handleTestGitHub}
+                    disabled={isTestingGitHub || !draftSiteSettings.githubSettings?.token}
+                    className="px-4 py-2.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-300 text-xs font-bold flex items-center gap-2 cursor-pointer transition-all disabled:opacity-40"
+                  >
+                    {isTestingGitHub ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
+                        <span>Verifying with GitHub...</span>
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw className="w-4 h-4 text-purple-400" />
+                        <span>Test Connection &amp; Verify PAT</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={handleSaveGitHubSettings}
+                    className="btn-3d-cyan px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer text-black"
+                  >
+                    <Save className="w-4 h-4 text-black" />
+                    <span>Save GitHub Settings</span>
+                  </button>
+
+                  <button
+                    onClick={handleDirectGitHubSync}
+                    disabled={isSyncingGitHub || !draftSiteSettings.githubSettings?.token}
+                    className="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold flex items-center gap-2 cursor-pointer transition-all disabled:opacity-40 shadow-sm"
+                  >
+                    {isSyncingGitHub ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Syncing to GitHub...</span>
+                      </>
+                    ) : (
+                      <>
+                        <GitBranch className="w-4 h-4" />
+                        <span>Push &amp; Sync to GitHub Now</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Status & Synced Files Box */}
+              <div className="p-5 rounded-2xl bg-[#141524] border border-white/5 space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Sync Status &amp; Tracked Files
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3 rounded-xl bg-[#0e0f18] border border-white/5">
+                    <p className="text-slate-400 text-[11px]">Repository Destination</p>
+                    <p className="font-mono text-purple-300 font-semibold mt-0.5">
+                      {draftSiteSettings.githubSettings?.owner && draftSiteSettings.githubSettings?.repo
+                        ? `github.com/${draftSiteSettings.githubSettings.owner}/${draftSiteSettings.githubSettings.repo} (${draftSiteSettings.githubSettings.branch || 'main'})`
+                        : 'Not configured'}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-[#0e0f18] border border-white/5">
+                    <p className="text-slate-400 text-[11px]">Last Synced</p>
+                    <p className="text-slate-200 font-semibold mt-0.5">
+                      {draftSiteSettings.githubSettings?.lastSyncedAt
+                        ? new Date(draftSiteSettings.githubSettings.lastSyncedAt).toLocaleString()
+                        : 'Not synced yet'}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span>
+                    Auto-synced files: <code className="text-cyan-300 font-mono">src/data/database.json</code> &amp; <code className="text-cyan-300 font-mono">data/database.json</code>
+                  </span>
+                </div>
               </div>
             </div>
           )}

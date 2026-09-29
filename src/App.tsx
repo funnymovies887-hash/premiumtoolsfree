@@ -45,7 +45,7 @@ export default function App() {
   const [apps, setAppsState] = useState<AppItem[]>(getStoredApps);
   const [adSettings, setAdSettingsState] = useState<AdSettings>(getAdSettings);
   const [siteSettings, setSiteSettingsState] = useState<SiteSettings>(getSiteSettings);
-  const [isAuthenticated, setIsAuthenticatedState] = useState<boolean>(false);
+  const [isAuthenticated, setIsAuthenticatedState] = useState<boolean>(() => isAdminAuthenticated());
 
   const [selectedApp, setSelectedApp] = useState<AppItem | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');

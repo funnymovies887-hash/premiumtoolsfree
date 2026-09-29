@@ -1,10 +1,18 @@
-import { AppItem, AdSettings, SiteSettings } from '../types';
+import { AppItem, AdSettings, SiteSettings, GitHubSettings } from '../types';
 import initialDb from '../data/database.json';
 
 export const DEFAULT_AD_LINK = initialDb?.adSettings?.defaultAdLink || "https://splendid-garage.com/SJ7fF4";
 export const OLD_AD_LINK = "https://data527.click/3421c9af17a0973e4bbb/537ad80f08/?placementName=default";
 export const DEFAULT_MAIN_CONTENT_URL = initialDb?.adSettings?.defaultMainContentUrl || "https://t.me/premiumtoolsfree1";
 export const DEFAULT_ADMIN_PASSWORD = initialDb?.siteSettings?.adminPassword || "Aa123456@";
+
+export const DEFAULT_GITHUB_SETTINGS: GitHubSettings = {
+  token: (initialDb?.siteSettings as any)?.githubSettings?.token || '',
+  owner: (initialDb?.siteSettings as any)?.githubSettings?.owner || '',
+  repo: (initialDb?.siteSettings as any)?.githubSettings?.repo || '',
+  branch: (initialDb?.siteSettings as any)?.githubSettings?.branch || 'main',
+  autoSync: (initialDb?.siteSettings as any)?.githubSettings?.autoSync ?? true,
+};
 
 export const DEFAULT_AD_SETTINGS: AdSettings = {
   defaultAdLink: initialDb?.adSettings?.defaultAdLink || DEFAULT_AD_LINK,
@@ -29,6 +37,7 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   telegramChannel: initialDb?.siteSettings?.telegramChannel || "https://t.me/premiumtoolsfree1",
   announcement: initialDb?.siteSettings?.announcement || "🔥 New Premium Tools Added! Join our Telegram Channel for direct updates & instant software keys.",
   adminPassword: initialDb?.siteSettings?.adminPassword || DEFAULT_ADMIN_PASSWORD,
+  githubSettings: (initialDb?.siteSettings as any)?.githubSettings || DEFAULT_GITHUB_SETTINGS,
 };
 
 export const INITIAL_APPS: AppItem[] = (initialDb && Array.isArray(initialDb.apps) && initialDb.apps.length > 0)
@@ -341,17 +350,54 @@ export async function saveAllToServer(payload: {
 }
 
 export function isAdminAuthenticated(): boolean {
-  // Always return false so visiting /admin strictly asks for password every session/visit
-  return false;
+  try {
+    return sessionStorage.getItem(STORAGE_KEYS.ADMIN_SESSION) === 'true' ||
+           localStorage.getItem(STORAGE_KEYS.ADMIN_SESSION) === 'true';
+  } catch {
+    return false;
+  }
 }
 
 export function setAdminAuthenticated(auth: boolean): void {
   try {
-    if (!auth) {
+    if (auth) {
+      sessionStorage.setItem(STORAGE_KEYS.ADMIN_SESSION, 'true');
+      localStorage.setItem(STORAGE_KEYS.ADMIN_SESSION, 'true');
+    } else {
       sessionStorage.removeItem(STORAGE_KEYS.ADMIN_SESSION);
+      localStorage.removeItem(STORAGE_KEYS.ADMIN_SESSION);
     }
   } catch (err) {
     console.error("Error setting admin session", err);
+  }
+}
+
+// GitHub API Integration Helpers
+export async function testGitHubConnection(settings: GitHubSettings): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await fetch('/api/github/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    });
+    const data = await res.json();
+    return data;
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'Network error reaching server' };
+  }
+}
+
+export async function syncToGitHub(settings?: GitHubSettings): Promise<{ success: boolean; message: string; commitUrl?: string; timestamp?: number }> {
+  try {
+    const res = await fetch('/api/github/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings ? { githubSettings: settings } : {}),
+    });
+    const data = await res.json();
+    return data;
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'Failed to sync with GitHub' };
   }
 }
 
