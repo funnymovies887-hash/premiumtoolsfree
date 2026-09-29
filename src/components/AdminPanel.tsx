@@ -1613,7 +1613,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <li><a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">GitHub Settings &rarr; Developer Settings &rarr; Personal access tokens &rarr; Tokens (classic)</a>-এ যান।</li>
                   <li><strong>Generate new token (classic)</strong>-এ ক্লিক করুন।</li>
                   <li>Note-এ যেকোনো নাম দিন (যেমন: <code className="text-cyan-300 bg-white/5 px-1 rounded">AppStoreSync</code>) এবং স্কোপ থেকে <strong><code className="text-emerald-300 bg-emerald-950/60 px-1 rounded">repo</code> (Full control of private repositories)</strong> বক্সে টিক দিন।</li>
-                  <li>নিচে <strong>Generate token</strong> বাটনে ক্লিক করে টোকেনটি (যেমন: <code className="text-purple-300 bg-purple-950/60 px-1 rounded">ghp_...</code>) কপি করে নিচের বক্সে পেস্ট করুন।</li>
+                  <li>নিচে <strong>Generate token</strong> বাটনে ক্লিক করে টোকেনটি কপি করে নিচের বক্সে পেস্ট করুন।</li>
                 </ol>
               </div>
 
@@ -1628,7 +1628,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
                     <span>1. GitHub Personal Access Token (PAT) *</span>
-                    <span className="text-[11px] text-slate-400 font-normal">Starts with `ghp_` or `github_pat_`</span>
+                    <span className="text-[11px] text-slate-400 font-normal">Personal Access Token with repo scope</span>
                   </label>
                   <div className="relative">
                     <input
@@ -1645,7 +1645,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         }));
                         setGitHubTestResult(null);
                       }}
-                      placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                      placeholder="Paste your GitHub token here"
                       className="w-full px-4 py-3 pr-12 rounded-xl bg-[#0e0f18] border border-white/10 focus:border-purple-400 text-sm text-white placeholder-slate-500 font-mono outline-none transition-colors"
                     />
                     <button

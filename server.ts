@@ -12,23 +12,56 @@ const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'database.json');
 const SRC_DATA_DIR = path.join(__dirname, 'src', 'data');
 const SRC_DB_FILE = path.join(SRC_DATA_DIR, 'database.json');
+const TOKEN_SECRET_FILE = path.join(DATA_DIR, '.github_token');
+
+// Read secret PAT safely from git-ignored file
+function getSecretToken(): string {
+  try {
+    if (fs.existsSync(TOKEN_SECRET_FILE)) {
+      const t = fs.readFileSync(TOKEN_SECRET_FILE, 'utf-8').trim();
+      if (t) return t;
+    }
+  } catch (e) {
+    console.warn('Error reading secret token:', e);
+  }
+  return process.env.GITHUB_TOKEN || '';
+}
+
+// Save secret PAT safely to git-ignored file
+function saveSecretToken(token: string) {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    fs.writeFileSync(TOKEN_SECRET_FILE, token.trim(), 'utf-8');
+  } catch (e) {
+    console.error('Error writing secret token file:', e);
+  }
+}
 
 app.use(express.json({ limit: '15mb' }));
 
 // Ensure database file exists and reads from primary or source tree
 function getDatabase() {
   try {
+    let db: any = null;
     if (fs.existsSync(DB_FILE)) {
       const raw = fs.readFileSync(DB_FILE, 'utf-8');
       if (raw.trim()) {
-        return JSON.parse(raw);
+        db = JSON.parse(raw);
       }
-    }
-    if (fs.existsSync(SRC_DB_FILE)) {
+    } else if (fs.existsSync(SRC_DB_FILE)) {
       const raw = fs.readFileSync(SRC_DB_FILE, 'utf-8');
       if (raw.trim()) {
-        return JSON.parse(raw);
+        db = JSON.parse(raw);
       }
+    }
+    if (db) {
+      const secret = getSecretToken();
+      if (secret && db.siteSettings?.githubSettings) {
+        db.siteSettings.githubSettings.token = secret;
+      }
+      return db;
     }
   } catch (err) {
     console.error('Error reading database file:', err);
@@ -37,6 +70,7 @@ function getDatabase() {
 }
 
 // Persist data simultaneously to /data/database.json and /src/data/database.json for GitHub/repo persistence
+// IMPORTANT: Secret PAT is stored safely in .github_token and NEVER committed to database.json to prevent push rejection
 function saveDatabase(data: any) {
   try {
     if (!fs.existsSync(DATA_DIR)) {
@@ -45,10 +79,20 @@ function saveDatabase(data: any) {
     if (!fs.existsSync(SRC_DATA_DIR)) {
       fs.mkdirSync(SRC_DATA_DIR, { recursive: true });
     }
-    const payload = {
-      ...data,
-      updatedAt: Date.now(),
-    };
+
+    // Extract and store secret token safely in .github_token
+    const incomingToken = data?.siteSettings?.githubSettings?.token;
+    if (incomingToken && typeof incomingToken === 'string' && incomingToken.trim()) {
+      saveSecretToken(incomingToken.trim());
+    }
+
+    // Clone payload and sanitize token to empty string in json files
+    const payload = JSON.parse(JSON.stringify(data));
+    payload.updatedAt = Date.now();
+    if (payload?.siteSettings?.githubSettings) {
+      payload.siteSettings.githubSettings.token = '';
+    }
+
     const jsonString = JSON.stringify(payload, null, 2);
     fs.writeFileSync(DB_FILE, jsonString, 'utf-8');
     fs.writeFileSync(SRC_DB_FILE, jsonString, 'utf-8');
@@ -168,8 +212,9 @@ async function syncDatabaseToGitHub(githubConfig: {
 function triggerAutoGitHubSync(currentDb: any) {
   try {
     const gh = currentDb?.siteSettings?.githubSettings;
-    if (gh && gh.token && gh.owner && gh.repo && gh.autoSync !== false) {
-      syncDatabaseToGitHub(gh)
+    const activeToken = (gh && gh.token) || getSecretToken();
+    if (activeToken && gh && gh.owner && gh.repo && gh.autoSync !== false) {
+      syncDatabaseToGitHub({ ...gh, token: activeToken })
         .then((res) => {
           console.log('Background GitHub Auto-Sync succeeded:', res.message);
           // Update lastSyncedAt timestamp in database
@@ -315,26 +360,80 @@ app.post('/api/github/test', async (req, res) => {
   }
 });
 
-// GitHub Direct Manual Sync Route
+// GitHub API Configuration Status Route
+app.get('/api/github/config', (_req, res) => {
+  try {
+    const current = getDatabase() || {};
+    const gh = current?.siteSettings?.githubSettings || {};
+    const token = getSecretToken() || gh.token || '';
+    const owner = gh.owner || 'funnymovies887-hash';
+    const repo = gh.repo || 'premiumtoolsfree';
+    const branch = gh.branch || 'main';
+    const connected = Boolean(token && owner && repo);
+
+    return res.json({
+      success: true,
+      connected,
+      hasToken: Boolean(token),
+      token,
+      owner,
+      repo,
+      branch,
+      autoSync: gh.autoSync ?? true,
+      lastSyncedAt: gh.lastSyncedAt || null,
+      lastSyncStatus: gh.lastSyncStatus || (connected ? 'success' : 'idle'),
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || 'Error getting GitHub config' });
+  }
+});
+
+// GitHub Direct Manual Sync Route (1-Click Push)
 app.post('/api/github/sync', async (req, res) => {
   try {
     const current = getDatabase() || {};
-    const config = req.body?.githubSettings || current?.siteSettings?.githubSettings;
 
-    if (!config || !config.token || !config.owner || !config.repo) {
+    // 1. If payload contains updated apps or settings, persist them immediately to disk
+    if (req.body?.apps && Array.isArray(req.body.apps)) {
+      current.apps = req.body.apps;
+    }
+    if (req.body?.adSettings) {
+      current.adSettings = { ...current.adSettings, ...req.body.adSettings };
+    }
+    if (req.body?.siteSettings) {
+      current.siteSettings = { ...current.siteSettings, ...req.body.siteSettings };
+    }
+
+    const config = req.body?.githubSettings || current?.siteSettings?.githubSettings || {};
+    const activeToken = config?.token || getSecretToken();
+    const finalConfig = {
+      owner: config?.owner || 'funnymovies887-hash',
+      repo: config?.repo || 'premiumtoolsfree',
+      branch: config?.branch || 'main',
+      autoSync: config?.autoSync ?? true,
+      ...config,
+      token: activeToken,
+    };
+
+    if (!finalConfig.token) {
       return res.status(400).json({
         success: false,
-        error: 'GitHub PAT, Owner, and Repo are not configured yet. Please configure them in the GitHub tab.',
+        error: 'GitHub PAT is missing. Please configure it in the GitHub tab.',
       });
     }
 
-    const result = await syncDatabaseToGitHub(config);
+    // Save to disk first
+    saveDatabase(current);
 
-    // Save timestamp to database
+    // Commit and push directly to GitHub repository
+    const result = await syncDatabaseToGitHub(finalConfig);
+
+    // Save success timestamp to database
     if (current.siteSettings) {
       if (!current.siteSettings.githubSettings) {
-        current.siteSettings.githubSettings = config;
+        current.siteSettings.githubSettings = finalConfig;
       }
+      current.siteSettings.githubSettings.token = ''; // Keep secret isolated in .github_token
       current.siteSettings.githubSettings.lastSyncedAt = result.timestamp;
       current.siteSettings.githubSettings.lastSyncStatus = 'success';
       saveDatabase(current);
