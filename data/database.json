@@ -144,6 +144,7 @@
   "siteSettings": {
     "siteTitle": "PREMIUM STORE",
     "siteSubtitle": "100% Working Apps & Tools Download",
+    "siteLogo": "",
     "telegramChannel": "https://t.me/premiumtoolsfree1",
     "announcement": "🔥 New Premium Tools Added! Join our Telegram Channel for direct updates & instant software keys.",
     "adminPassword": "Aa123456@",
@@ -153,9 +154,9 @@
       "repo": "premiumtoolsfree",
       "branch": "main",
       "autoSync": true,
-      "lastSyncedAt": 1790670304158,
+      "lastSyncedAt": 1790671386145,
       "lastSyncStatus": "success"
     }
   },
-  "updatedAt": 1790670304159
+  "updatedAt": 1790671386145
 }
