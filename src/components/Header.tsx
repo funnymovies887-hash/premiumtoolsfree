@@ -50,9 +50,21 @@ export const Header: React.FC<HeaderProps> = ({
             onDoubleClick={onOpenAdmin}
             title={siteSettings.siteTitle}
           >
-            <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-2xl bg-gradient-to-br from-cyan-400 via-teal-400 to-blue-600 flex items-center justify-center text-black font-extrabold text-xl shadow-[0_0_20px_rgba(0,242,234,0.4)] border border-white/20">
-              <Sparkles className="w-6 h-6 stroke-[2.5]" />
-            </div>
+            {siteSettings.siteLogo ? (
+              <img
+                src={siteSettings.siteLogo}
+                alt={siteSettings.siteTitle}
+                className="h-10 w-10 sm:h-12 sm:w-12 rounded-2xl object-cover border border-cyan-400/40 shadow-[0_0_20px_rgba(0,242,234,0.4)]"
+                onError={(e) => {
+                  // Fallback to sparkles icon container if logo fails to load
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
+            ) : (
+              <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-2xl bg-gradient-to-br from-cyan-400 via-teal-400 to-blue-600 flex items-center justify-center text-black font-extrabold text-xl shadow-[0_0_20px_rgba(0,242,234,0.4)] border border-white/20">
+                <Sparkles className="w-6 h-6 stroke-[2.5]" />
+              </div>
+            )}
             <div>
               <h1 className="text-xl sm:text-2xl font-extrabold tracking-wider text-white uppercase drop-shadow-[0_2px_8px_rgba(0,242,234,0.4)]">
                 {siteSettings.siteTitle}
