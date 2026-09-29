@@ -86,9 +86,21 @@ async function syncDatabaseToGitHub(githubConfig: {
     throw new Error('Database file not found on server');
   }
 
+  // Sanitize any raw tokens from committed content to prevent GitHub Secret Scanning push protection violations
+  let sanitizedDbContent = dbContent;
+  try {
+    const parsed = JSON.parse(dbContent);
+    if (parsed?.siteSettings?.githubSettings?.token) {
+      parsed.siteSettings.githubSettings.token = '';
+      sanitizedDbContent = JSON.stringify(parsed, null, 2);
+    }
+  } catch (err) {
+    console.warn('Could not parse dbContent for sanitization:', err);
+  }
+
   const filesToCommit = [
-    { path: 'src/data/database.json', content: dbContent },
-    { path: 'data/database.json', content: dbContent },
+    { path: 'src/data/database.json', content: sanitizedDbContent },
+    { path: 'data/database.json', content: sanitizedDbContent },
   ];
 
   let lastCommitUrl = '';
