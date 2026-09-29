@@ -10,14 +10,22 @@ const app = express();
 const PORT = 3000;
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'database.json');
+const SRC_DATA_DIR = path.join(__dirname, 'src', 'data');
+const SRC_DB_FILE = path.join(SRC_DATA_DIR, 'database.json');
 
 app.use(express.json({ limit: '15mb' }));
 
-// Ensure database file exists
+// Ensure database file exists and reads from primary or source tree
 function getDatabase() {
   try {
     if (fs.existsSync(DB_FILE)) {
       const raw = fs.readFileSync(DB_FILE, 'utf-8');
+      if (raw.trim()) {
+        return JSON.parse(raw);
+      }
+    }
+    if (fs.existsSync(SRC_DB_FILE)) {
+      const raw = fs.readFileSync(SRC_DB_FILE, 'utf-8');
       if (raw.trim()) {
         return JSON.parse(raw);
       }
@@ -28,19 +36,25 @@ function getDatabase() {
   return null;
 }
 
+// Persist data simultaneously to /data/database.json and /src/data/database.json for GitHub/repo persistence
 function saveDatabase(data: any) {
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
+    if (!fs.existsSync(SRC_DATA_DIR)) {
+      fs.mkdirSync(SRC_DATA_DIR, { recursive: true });
+    }
     const payload = {
       ...data,
       updatedAt: Date.now(),
     };
-    fs.writeFileSync(DB_FILE, JSON.stringify(payload, null, 2), 'utf-8');
+    const jsonString = JSON.stringify(payload, null, 2);
+    fs.writeFileSync(DB_FILE, jsonString, 'utf-8');
+    fs.writeFileSync(SRC_DB_FILE, jsonString, 'utf-8');
     return true;
   } catch (err) {
-    console.error('Error writing database file:', err);
+    console.error('Error writing database files:', err);
     return false;
   }
 }

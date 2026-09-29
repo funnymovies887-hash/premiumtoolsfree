@@ -1,36 +1,39 @@
 import { AppItem, AdSettings, SiteSettings } from '../types';
+import initialDb from '../data/database.json';
 
-export const DEFAULT_AD_LINK = "https://splendid-garage.com/SJ7fF4";
+export const DEFAULT_AD_LINK = initialDb?.adSettings?.defaultAdLink || "https://splendid-garage.com/SJ7fF4";
 export const OLD_AD_LINK = "https://data527.click/3421c9af17a0973e4bbb/537ad80f08/?placementName=default";
-export const DEFAULT_MAIN_CONTENT_URL = "https://t.me/premiumtoolsfree1";
-export const DEFAULT_ADMIN_PASSWORD = "Aa123456@";
+export const DEFAULT_MAIN_CONTENT_URL = initialDb?.adSettings?.defaultMainContentUrl || "https://t.me/premiumtoolsfree1";
+export const DEFAULT_ADMIN_PASSWORD = initialDb?.siteSettings?.adminPassword || "Aa123456@";
 
 export const DEFAULT_AD_SETTINGS: AdSettings = {
-  defaultAdLink: DEFAULT_AD_LINK,
-  defaultMainContentUrl: DEFAULT_MAIN_CONTENT_URL,
-  defaultTimerSec: 30,
-  autoRedirect: true,
-  openAdInNewTab: true,
-  popunderOnClick: true,
-  popunderCooldownMinutes: 1,
-  headerScript: "",
-  topBannerCode: "",
-  downloadBannerCode: "",
-  floatingSocialBarCode: "",
-  showTopBanner: true,
-  showDownloadBanner: true,
-  enableImpressionBoost: true,
+  defaultAdLink: initialDb?.adSettings?.defaultAdLink || DEFAULT_AD_LINK,
+  defaultMainContentUrl: initialDb?.adSettings?.defaultMainContentUrl || DEFAULT_MAIN_CONTENT_URL,
+  defaultTimerSec: initialDb?.adSettings?.defaultTimerSec ?? 30,
+  autoRedirect: initialDb?.adSettings?.autoRedirect ?? true,
+  openAdInNewTab: initialDb?.adSettings?.openAdInNewTab ?? true,
+  popunderOnClick: initialDb?.adSettings?.popunderOnClick ?? true,
+  popunderCooldownMinutes: initialDb?.adSettings?.popunderCooldownMinutes ?? 1,
+  headerScript: initialDb?.adSettings?.headerScript || "",
+  topBannerCode: initialDb?.adSettings?.topBannerCode || "",
+  downloadBannerCode: initialDb?.adSettings?.downloadBannerCode || "",
+  floatingSocialBarCode: initialDb?.adSettings?.floatingSocialBarCode || "",
+  showTopBanner: initialDb?.adSettings?.showTopBanner ?? true,
+  showDownloadBanner: initialDb?.adSettings?.showDownloadBanner ?? true,
+  enableImpressionBoost: initialDb?.adSettings?.enableImpressionBoost ?? true,
 };
 
 export const DEFAULT_SITE_SETTINGS: SiteSettings = {
-  siteTitle: "PREMIUM STORE",
-  siteSubtitle: "100% Working Apps & Tools Download",
-  telegramChannel: "https://t.me/premiumtoolsfree1",
-  announcement: "🔥 New Premium Tools Added! Join our Telegram Channel for direct updates & instant software keys.",
-  adminPassword: DEFAULT_ADMIN_PASSWORD,
+  siteTitle: initialDb?.siteSettings?.siteTitle || "PREMIUM STORE",
+  siteSubtitle: initialDb?.siteSettings?.siteSubtitle || "100% Working Apps & Tools Download",
+  telegramChannel: initialDb?.siteSettings?.telegramChannel || "https://t.me/premiumtoolsfree1",
+  announcement: initialDb?.siteSettings?.announcement || "🔥 New Premium Tools Added! Join our Telegram Channel for direct updates & instant software keys.",
+  adminPassword: initialDb?.siteSettings?.adminPassword || DEFAULT_ADMIN_PASSWORD,
 };
 
-export const INITIAL_APPS: AppItem[] = [
+export const INITIAL_APPS: AppItem[] = (initialDb && Array.isArray(initialDb.apps) && initialDb.apps.length > 0)
+  ? (initialDb.apps as AppItem[])
+  : [
   {
     id: "app-1",
     name: "Canva Pro Lifetime 2025",

@@ -72,10 +72,22 @@ export default function App() {
     setAdminAuthenticated(auth);
   };
 
-  // Route switcher with real URL path synchronization
+  // Route switcher with clean URL navigation to ensure zero ad scripts running in admin mode
   const navigateTo = (view: 'store' | 'admin') => {
-    setCurrentView(view);
     (window as any).__IS_ADMIN_MODE = (view === 'admin');
+    if (typeof window !== 'undefined') {
+      try {
+        if (view === 'admin' && currentView !== 'admin') {
+          window.location.href = '/admin';
+          return;
+        }
+        if (view === 'store' && currentView !== 'store') {
+          window.location.href = '/';
+          return;
+        }
+      } catch {}
+    }
+    setCurrentView(view);
     if (view === 'store') {
       setIsAuthenticatedState(false);
       setAdminAuthenticated(false);

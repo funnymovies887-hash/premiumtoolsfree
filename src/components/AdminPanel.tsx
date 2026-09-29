@@ -105,16 +105,50 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [isSavingApp, setIsSavingApp] = useState(false);
   const [appSaveFeedback, setAppSaveFeedback] = useState(false);
+  const [appValidationError, setAppValidationError] = useState('');
+
+  // In-UI Delete Confirmation Modal state (Replaces blocked window.confirm)
+  const [appToDelete, setAppToDelete] = useState<AppItem | null>(null);
 
   // High-visibility Save Confirmation Alert Banner
   const [saveNotice, setSaveNotice] = useState<{ title: string; detail: string } | null>(null);
 
-  // Set global Admin Mode flag while AdminPanel is mounted to prevent any popunders/ads
+  // Set global Admin Mode flag and active anti-ad observer while AdminPanel is mounted
   useEffect(() => {
     (window as any).__IS_ADMIN_MODE = true;
     document.body?.classList.add('in-admin-mode');
     document.documentElement?.classList.add('in-admin-mode');
+
+    // Purge any rogue 3rd-party ad elements or floating banners from body
+    const purgeRogueNodes = () => {
+      document.querySelectorAll('body > :not(#root):not(script):not(style)').forEach((node) => {
+        try {
+          node.remove();
+        } catch {}
+      });
+    };
+    purgeRogueNodes();
+
+    // Active MutationObserver: automatically removes any ad banners/overlays trying to inject into body
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+          if (node.nodeType === 1) {
+            const el = node as HTMLElement;
+            if (el.parentNode === document.body && el.id !== 'root') {
+              try {
+                el.remove();
+              } catch {}
+            }
+          }
+        });
+      });
+    });
+
+    observer.observe(document.body, { childList: true, subtree: false });
+
     return () => {
+      observer.disconnect();
       (window as any).__IS_ADMIN_MODE = false;
       document.body?.classList.remove('in-admin-mode');
       document.documentElement?.classList.remove('in-admin-mode');
@@ -144,17 +178,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setPasswordInput('');
   };
 
-  // App Management
-  const handleDeleteApp = (id: string, name: string) => {
-    if (window.confirm(`Are you sure you want to permanently remove "${name}"?`)) {
-      const updated = apps.filter((a) => a.id !== id);
-      setApps(updated);
-      saveAllToServer({ apps: updated });
-      triggerSaveNotice(
-        'App Removed & Server Synced!',
-        `"${name}" has been permanently removed from the live store & server database.`
-      );
-    }
+  // App Management with in-UI Confirmation (100% works in iframes and mobile)
+  const handleDeleteApp = (item: AppItem) => {
+    setAppToDelete(item);
+  };
+
+  const confirmDeleteApp = () => {
+    if (!appToDelete) return;
+    const targetName = appToDelete.name;
+    const updated = apps.filter((a) => a.id !== appToDelete.id);
+    setApps(updated);
+    saveAllToServer({ apps: updated });
+    triggerSaveNotice(
+      'App Permanently Deleted & Synced Everywhere!',
+      `"${targetName}" has been completely erased from the public store, database, and repository files.`
+    );
+    setAppToDelete(null);
   };
 
   const openNewAppModal = () => {
@@ -191,9 +230,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const handleSaveApp = (appData: AppItem) => {
     if (!appData.name.trim()) {
-      alert('App name is required');
+      setAppValidationError('App name is required');
       return;
     }
+    setAppValidationError('');
 
     setIsSavingApp(true);
     setTimeout(() => {
@@ -700,8 +740,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                 <Edit3 className="w-3.5 h-3.5" />
                               </button>
                               <button
-                                onClick={() => handleDeleteApp(item.id, item.name)}
-                                className="p-1.5 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800/50"
+                                onClick={() => handleDeleteApp(item)}
+                                className="p-1.5 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800/50 cursor-pointer transition-colors"
                                 title="Delete App"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -1535,6 +1575,39 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </div>
                 );
               })()}
+            </div>
+          </div>
+        )}
+
+        {/* In-UI App Delete Confirmation Dialog (Reliable in iframes without browser confirm popup) */}
+        {appToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+            <div className="w-full max-w-md bg-[#131422] border border-red-500/40 rounded-3xl p-6 sm:p-7 shadow-[0_0_50px_rgba(239,68,68,0.25)] text-center text-white">
+              <div className="mx-auto mb-4 w-14 h-14 rounded-2xl bg-red-500/20 text-red-400 flex items-center justify-center border border-red-500/30">
+                <Trash2 className="w-7 h-7" />
+              </div>
+              <h3 className="text-lg font-bold text-white mb-2">Delete App Permanently?</h3>
+              <p className="text-xs text-slate-300 mb-6 leading-relaxed">
+                Are you sure you want to permanently remove <strong className="text-white">"{appToDelete.name}"</strong>? 
+                This will immediately delete it from the public store, disk database, and repository source files.
+              </p>
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setAppToDelete(null)}
+                  className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-semibold cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDeleteApp}
+                  className="px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold shadow-lg shadow-red-500/30 flex items-center gap-2 cursor-pointer transition-all"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Yes, Delete Permanently</span>
+                </button>
+              </div>
             </div>
           </div>
         )}

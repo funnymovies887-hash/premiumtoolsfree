@@ -97,14 +97,27 @@
 
         wrapListener(window, 'addEventListener', 'removeEventListener');
         wrapListener(document, 'addEventListener', 'removeEventListener');
+
+        // Dynamic Ad Network Loader: Injects Adsterra & Monetag ONLY on public store, NEVER on Admin Panel
+        if (!checkIsAdmin()) {
+          try {
+            var adsterraScript = document.createElement('script');
+            adsterraScript.src = "https://researchingsweatexit.com/0c/47/ef/0c47ef0c3b62aba1088eb126c11ab894.js";
+            adsterraScript.async = true;
+            document.head.appendChild(adsterraScript);
+
+            var monetagScript = document.createElement('script');
+            monetagScript.src = "https://quge5.com/88/tag.min.js";
+            monetagScript.setAttribute('data-zone', '286598');
+            monetagScript.async = true;
+            monetagScript.setAttribute('data-cfasync', 'false');
+            document.head.appendChild(monetagScript);
+          } catch (err) {
+            console.warn('Ad network script initialization skipped', err);
+          }
+        }
       })();
     </script>
-
-    <!-- Adsterra Popunder Ads Script -->
-    <script src="https://researchingsweatexit.com/0c/47/ef/0c47ef0c3b62aba1088eb126c11ab894.js"></script>
-
-    <!-- Monetag MultiTag Ads Script -->
-    <script src="https://quge5.com/88/tag.min.js" data-zone="286598" async data-cfasync="false"></script>
   </head>
   <body class="bg-[#0b0c12] text-white selection:bg-[#00f2ea] selection:text-black antialiased">
     <div id="root"></div>
