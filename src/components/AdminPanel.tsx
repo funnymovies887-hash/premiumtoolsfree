@@ -27,10 +27,65 @@ import {
   Globe,
   RotateCcw,
   Github,
-  GitBranch
+  GitBranch,
+  Upload,
+  Sparkles
 } from 'lucide-react';
 import { AppItem, AdSettings, SiteSettings, GitHubSettings } from '../types';
 import { saveAllToServer, testGitHubConnection, syncToGitHub } from '../utils/storage';
+
+// Popular high-resolution verified presets for apps & software
+const PRESET_APP_LOGOS = [
+  { name: 'Canva Pro', url: 'https://images.unsplash.com/photo-1626785774573-4b799315345d?w=200&auto=format&fit=crop&q=80' },
+  { name: 'CapCut PC', url: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=200&auto=format&fit=crop&q=80' },
+  { name: 'Photoshop', url: 'https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?w=200&auto=format&fit=crop&q=80' },
+  { name: 'Filmora VIP', url: 'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=200&auto=format&fit=crop&q=80' },
+  { name: 'IDM Downloader', url: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=200&auto=format&fit=crop&q=80' },
+  { name: 'ChatGPT Plus', url: 'https://images.unsplash.com/photo-1677442136019-21780efad99a?w=200&auto=format&fit=crop&q=80' },
+  { name: 'NordVPN VIP', url: 'https://images.unsplash.com/photo-1563986768609-322da13575f3?w=200&auto=format&fit=crop&q=80' },
+  { name: 'Telegram Bot', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=80' },
+  { name: 'Gaming / Stream', url: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=200&auto=format&fit=crop&q=80' },
+  { name: 'Windows / PC', url: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=200&auto=format&fit=crop&q=80' },
+  { name: 'Developer / Code', url: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=200&auto=format&fit=crop&q=80' },
+  { name: 'Security & Antivirus', url: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=200&auto=format&fit=crop&q=80' },
+];
+
+// Helper to convert and resize local images to compressed WebP/JPEG data URLs
+const processImageFile = (file: File, callback: (base64: string) => void) => {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const maxDim = 256;
+      let width = img.width;
+      let height = img.height;
+      if (width > height) {
+        if (width > maxDim) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        }
+      } else {
+        if (height > maxDim) {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, width, height);
+        callback(canvas.toDataURL('image/jpeg', 0.88));
+      } else {
+        callback(e.target?.result as string);
+      }
+    };
+    img.src = e.target?.result as string;
+  };
+  reader.readAsDataURL(file);
+};
 
 interface AdminPanelProps {
   isOpen?: boolean;
@@ -1239,6 +1294,67 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <div className="bg-[#161725] p-5 rounded-2xl border border-white/5 space-y-4">
                 <h3 className="text-sm font-bold text-white">General Store Information</h3>
 
+                {/* Website Logo / Picture Upload */}
+                <div className="bg-[#0e0f18] p-3.5 rounded-xl border border-white/5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-semibold text-slate-300">
+                      Website Logo / ছবি (অপশনাল)
+                    </label>
+                    <span className="text-[11px] text-cyan-400 font-medium">
+                      পিসি বা মোবাইল থেকে ছবি বেছে নিন
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {draftSiteSettings.siteLogo ? (
+                      <img
+                        src={draftSiteSettings.siteLogo}
+                        alt="Site Logo"
+                        className="h-12 w-12 rounded-2xl object-cover border border-cyan-400/40 shrink-0 bg-[#08080f]"
+                      />
+                    ) : (
+                      <div className="h-12 w-12 rounded-2xl bg-cyan-500/10 border border-white/10 flex items-center justify-center text-cyan-400 shrink-0">
+                        <Sparkles className="w-6 h-6" />
+                      </div>
+                    )}
+                    <input
+                      type="text"
+                      value={draftSiteSettings.siteLogo || ''}
+                      onChange={(e) =>
+                        setDraftSiteSettings({ ...draftSiteSettings, siteLogo: e.target.value })
+                      }
+                      placeholder="Image URL (https://...) অথবা Upload Logo বাটনে ক্লিক করুন"
+                      className="flex-1 px-3.5 py-2.5 rounded-xl bg-[#141522] border border-white/10 text-xs text-white focus:border-cyan-400 outline-none"
+                    />
+                    <label className="px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black text-xs font-bold flex items-center gap-1.5 cursor-pointer shrink-0 transition-all shadow-md">
+                      <Upload className="w-3.5 h-3.5 stroke-[2.5]" />
+                      <span>Upload Logo</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            processImageFile(file, (dataUrl) => {
+                              setDraftSiteSettings({ ...draftSiteSettings, siteLogo: dataUrl });
+                            });
+                          }
+                        }}
+                      />
+                    </label>
+                    {draftSiteSettings.siteLogo && (
+                      <button
+                        type="button"
+                        onClick={() => setDraftSiteSettings({ ...draftSiteSettings, siteLogo: '' })}
+                        className="p-2.5 rounded-xl bg-red-950/50 hover:bg-red-900/60 border border-red-800/40 text-red-300 transition-colors cursor-pointer"
+                        title="Remove Logo"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
                     Store Title
@@ -1860,28 +1976,78 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   />
                 </div>
 
-                {/* Logo URL */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    App Icon / Logo Image URL
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={editingApp.logo}
-                      alt="Preview"
-                      className="h-10 w-10 rounded-xl object-cover border border-white/10 shrink-0"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src =
-                          'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=80';
-                      }}
-                    />
-                    <input
-                      type="text"
-                      value={editingApp.logo}
-                      onChange={(e) => setEditingApp({ ...editingApp, logo: e.target.value })}
-                      placeholder="https://..."
-                      className="flex-1 px-3.5 py-2.5 rounded-xl bg-[#0e0f18] border border-white/10 text-xs text-white focus:border-cyan-400 outline-none"
-                    />
+                {/* Logo URL & File Upload & 1-Click Presets */}
+                <div className="bg-[#12131f] p-3.5 rounded-2xl border border-white/5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-semibold text-slate-300">
+                      App Icon / Software Logo (ছবি) *
+                    </label>
+                    <span className="text-[11px] text-cyan-400 font-medium">
+                      মোবাইল বা পিসি থেকে ছবি আপলোড করতে পারবেন
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                    <div className="relative shrink-0">
+                      <img
+                        src={editingApp.logo}
+                        alt="Preview"
+                        className="h-14 w-14 rounded-2xl object-cover border-2 border-cyan-400/50 shadow-md bg-[#0a0a12]"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src =
+                            'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=80';
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex-1 w-full space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={editingApp.logo}
+                          onChange={(e) => setEditingApp({ ...editingApp, logo: e.target.value })}
+                          placeholder="Image URL (https://...) অথবা নিচের বাটনে ক্লিক করে ফাইল বেছে নিন"
+                          className="flex-1 px-3.5 py-2.5 rounded-xl bg-[#0e0f18] border border-white/10 text-xs text-white focus:border-cyan-400 outline-none"
+                        />
+                        <label className="px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-bold text-xs flex items-center gap-1.5 cursor-pointer shrink-0 transition-all shadow-md">
+                          <Upload className="w-4 h-4 stroke-[2.5]" />
+                          <span>ছবি আপলোড</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                processImageFile(file, (dataUrl) => {
+                                  setEditingApp({ ...editingApp, logo: dataUrl });
+                                });
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
+
+                      {/* 1-Click Popular Preset Software Icons */}
+                      <div>
+                        <span className="text-[10px] text-slate-400 block mb-1">
+                          ১-ক্লিকে জনপ্রিয় সফটওয়্যার আইকন সিলেক্ট করুন:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+                          {PRESET_APP_LOGOS.map((p) => (
+                            <button
+                              key={p.name}
+                              type="button"
+                              onClick={() => setEditingApp({ ...editingApp, logo: p.url })}
+                              className="px-2 py-1 rounded-lg bg-white/5 hover:bg-cyan-500/20 hover:text-cyan-300 border border-white/10 text-[10px] text-slate-300 transition-colors flex items-center gap-1 cursor-pointer"
+                            >
+                              <img src={p.url} alt="" className="w-3.5 h-3.5 rounded object-cover" />
+                              <span>{p.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
