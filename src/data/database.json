@@ -112,7 +112,7 @@
     {
       "id": "app-8",
       "name": "Telegram Multi-Account Bot Manager",
-      "logo": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=80",
+      "logo": "https://i.postimg.cc/mrNpdM2V/image-search-1790267357268.webp",
       "category": "Utilities & Tools",
       "description": "Automate Telegram channel postings, member invites, scheduled auto-replies, and scraping.",
       "version": "v3.1.2 Pro",
@@ -154,9 +154,9 @@
       "repo": "premiumtoolsfree",
       "branch": "main",
       "autoSync": true,
-      "lastSyncedAt": 1790783753168,
+      "lastSyncedAt": 1790783772172,
       "lastSyncStatus": "success"
     }
   },
-  "updatedAt": 1790783767509
+  "updatedAt": 1790783801708
 }
