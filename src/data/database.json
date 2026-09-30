@@ -3,7 +3,7 @@
     {
       "id": "app-1",
       "name": "Canva Pro Lifetime 2025",
-      "logo": "https://images.unsplash.com/photo-1626785774573-4b799315345d?w=200&auto=format&fit=crop&q=80",
+      "logo": "https://i.postimg.cc/yxVHQsH2/image-search-1790266985225.jpg",
       "category": "Design & Creative",
       "description": "Unlimited premium templates, brand kits, AI magic studio, and background remover unlocked.",
       "version": "v4.92.0",
@@ -149,14 +149,14 @@
     "announcement": "🔥 New Premium Tools Added! Join our Telegram Channel for direct updates & instant software keys.",
     "adminPassword": "Aa123456@",
     "githubSettings": {
+      "token": "",
       "owner": "funnymovies887-hash",
       "repo": "premiumtoolsfree",
       "branch": "main",
       "autoSync": true,
-      "token": "",
       "lastSyncedAt": 1790671680573,
       "lastSyncStatus": "success"
     }
   },
-  "updatedAt": 1790757088282
+  "updatedAt": 1790758785933
 }
