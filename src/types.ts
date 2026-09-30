@@ -37,7 +37,7 @@ export interface GitHubSettings {
   owner: string;
   repo: string;
   branch: string;
-  autoSync: boolean;
+  autoSync?: boolean;
   lastSyncedAt?: number;
   lastSyncStatus?: 'success' | 'error' | 'idle';
   lastSyncMessage?: string;

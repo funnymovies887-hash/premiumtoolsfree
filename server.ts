@@ -41,6 +41,17 @@ function saveSecretToken(token: string) {
 
 app.use(express.json({ limit: '15mb' }));
 
+// CORS middleware allowing cross-origin requests from workers.dev or any client origin
+app.use((_req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  if (_req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 // Ensure database file exists and reads from primary or source tree
 function getDatabase() {
   try {

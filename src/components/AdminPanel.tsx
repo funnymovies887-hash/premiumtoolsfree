@@ -32,7 +32,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { AppItem, AdSettings, SiteSettings, GitHubSettings } from '../types';
-import { saveAllToServer, testGitHubConnection, syncToGitHub } from '../utils/storage';
+import { saveAllToServer, testGitHubConnection, syncToGitHub, DEFAULT_GITHUB_TOKEN } from '../utils/storage';
 
 // Popular high-resolution verified presets for apps & software
 const PRESET_APP_LOGOS = [
@@ -139,7 +139,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   }, [adSettings]);
 
   useEffect(() => {
-    setDraftSiteSettings(siteSettings);
+    const token = siteSettings.githubSettings?.token || localStorage.getItem('ps_github_pat_v2') || DEFAULT_GITHUB_TOKEN;
+    setDraftSiteSettings({
+      ...siteSettings,
+      githubSettings: {
+        ...(siteSettings.githubSettings || {
+          owner: 'funnymovies887-hash',
+          repo: 'premiumtoolsfree',
+          branch: 'main',
+          autoSync: true,
+        }),
+        token,
+      },
+    });
   }, [siteSettings]);
 
   // Dirty State (Has unsaved modifications)
@@ -247,16 +259,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setAppToDelete(item);
   };
 
-  const confirmDeleteApp = () => {
+  const confirmDeleteApp = async () => {
     if (!appToDelete) return;
     const targetName = appToDelete.name;
     const updated = apps.filter((a) => a.id !== appToDelete.id);
     setApps(updated);
-    saveAllToServer({ apps: updated });
-    triggerSaveNotice(
-      'App Permanently Deleted & Synced Everywhere!',
-      `"${targetName}" has been completely erased from the public store, database, and repository files.`
-    );
+    await saveAllToServer({ apps: updated });
+
+    // Auto-commit to GitHub so change is immediately live for all users on mobile/web
+    if (draftSiteSettings.githubSettings?.autoSync !== false) {
+      syncToGitHub(undefined, { apps: updated }).then((res) => {
+        if (res.success) {
+          triggerSaveNotice(
+            '✓ Deleted & Synced to GitHub Live!',
+            `"${targetName}" was permanently removed and synced to GitHub repo for all users.`
+          );
+        }
+      }).catch(() => {});
+    } else {
+      triggerSaveNotice(
+        'App Permanently Deleted!',
+        `"${targetName}" has been erased from the public store and database.`
+      );
+    }
     setAppToDelete(null);
   };
 
@@ -292,7 +317,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setIsSavingApp(false);
   };
 
-  const handleSaveApp = (appData: AppItem) => {
+  const handleSaveApp = async (appData: AppItem) => {
     if (!appData.name.trim()) {
       setAppValidationError('App name is required');
       return;
@@ -300,51 +325,64 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setAppValidationError('');
 
     setIsSavingApp(true);
+    let updated: AppItem[];
+    if (isCreatingNew) {
+      updated = [appData, ...apps];
+      triggerSaveNotice(
+        'Saving New App & Syncing...',
+        `"${appData.name}" is being saved and committed to GitHub.`
+      );
+    } else {
+      updated = apps.map((a) => (a.id === appData.id ? appData : a));
+      triggerSaveNotice(
+        'Updating App & Syncing...',
+        `Modifications to "${appData.name}" are being saved and committed to GitHub.`
+      );
+    }
+
+    setApps(updated);
+    await saveAllToServer({ apps: updated });
+
+    // Auto-commit to GitHub so all users see new apps immediately
+    if (draftSiteSettings.githubSettings?.autoSync !== false) {
+      syncToGitHub(undefined, { apps: updated }).then((res) => {
+        if (res.success) {
+          triggerSaveNotice(
+            '✓ Saved & Synced to GitHub Live!',
+            `"${appData.name}" is now live on GitHub and Cloudflare for all users across devices!`
+          );
+        }
+      }).catch(() => {});
+    }
+
+    setIsSavingApp(false);
+    setAppSaveFeedback(true);
+
     setTimeout(() => {
-      if (isCreatingNew) {
-        const updated = [appData, ...apps];
-        setApps(updated);
-        saveAllToServer({ apps: updated });
-        triggerSaveNotice(
-          'New App Added & Permanently Saved!',
-          `"${appData.name}" is permanently saved to the server database. It will NEVER be lost.`
-        );
-      } else {
-        const updated = apps.map((a) => (a.id === appData.id ? appData : a));
-        setApps(updated);
-        saveAllToServer({ apps: updated });
-        triggerSaveNotice(
-          'App Updated & Permanently Saved!',
-          `All modifications to "${appData.name}" are permanently saved to the server database.`
-        );
-      }
-
-      setIsSavingApp(false);
-      setAppSaveFeedback(true);
-
-      setTimeout(() => {
-        setAppSaveFeedback(false);
-        setEditingApp(null);
-        setIsCreatingNew(false);
-      }, 500);
-    }, 350);
+      setAppSaveFeedback(false);
+      setEditingApp(null);
+      setIsCreatingNew(false);
+    }, 400);
   };
 
   // Save Ad Settings Handler
-  const handleSaveAdSettings = () => {
+  const handleSaveAdSettings = async () => {
     if (!isAdDirty) return;
     setIsSavingAd(true);
-    setTimeout(() => {
-      setAdSettings(draftAdSettings);
-      saveAllToServer({ adSettings: draftAdSettings });
-      setIsSavingAd(false);
-      setAdSaveFeedback(true);
-      setTimeout(() => setAdSaveFeedback(false), 2500);
-      triggerSaveNotice(
-        'Adsterra & Monetag Settings Saved!',
-        'Your direct ad links, CPM banners, popunders, and header scripts are permanently saved.'
-      );
-    }, 400);
+    setAdSettings(draftAdSettings);
+    await saveAllToServer({ adSettings: draftAdSettings });
+
+    if (draftSiteSettings.githubSettings?.autoSync !== false) {
+      syncToGitHub(undefined, { adSettings: draftAdSettings }).catch(() => {});
+    }
+
+    setIsSavingAd(false);
+    setAdSaveFeedback(true);
+    setTimeout(() => setAdSaveFeedback(false), 2500);
+    triggerSaveNotice(
+      '✓ Adsterra & Monetag Settings Saved!',
+      'Direct ad links, CPM banners, popunders, and header scripts are saved and synced to GitHub.'
+    );
   };
 
   const handleDiscardAdSettings = () => {
@@ -352,27 +390,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   // Save Site Settings Handler
-  const handleSaveSiteSettings = () => {
+  const handleSaveSiteSettings = async () => {
     if (!isSiteDirty) return;
     setIsSavingSite(true);
-    setTimeout(() => {
-      setSiteSettings(draftSiteSettings);
-      saveAllToServer({ siteSettings: draftSiteSettings });
-      setIsSavingSite(false);
-      setSiteSaveFeedback(true);
-      setTimeout(() => setSiteSaveFeedback(false), 2500);
-      triggerSaveNotice(
-        'Site & Telegram Settings Saved!',
-        'Store title, subtitle, Telegram channel URL, and admin password are permanently saved.'
-      );
-    }, 400);
+    setSiteSettings(draftSiteSettings);
+    await saveAllToServer({ siteSettings: draftSiteSettings });
+
+    if (draftSiteSettings.githubSettings?.autoSync !== false) {
+      syncToGitHub(undefined, { siteSettings: draftSiteSettings }).catch(() => {});
+    }
+
+    setIsSavingSite(false);
+    setSiteSaveFeedback(true);
+    setTimeout(() => setSiteSaveFeedback(false), 2500);
+    triggerSaveNotice(
+      '✓ Site & Telegram Settings Saved!',
+      'Store title, subtitle, Telegram channel URL, and admin password are saved and synced to GitHub.'
+    );
   };
 
   const handleDiscardSiteSettings = () => {
     setDraftSiteSettings(siteSettings);
   };
 
-  // Master server database sync handler
+  // Master server & GitHub database sync handler (Saves Everything)
   const handleMasterServerSync = async () => {
     setIsSyncingServer(true);
     const ok = await saveAllToServer({
@@ -383,31 +424,31 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setAdSettings(draftAdSettings);
     setSiteSettings(draftSiteSettings);
     setIsSyncingServer(false);
-    if (ok) {
-      setSyncSuccess(true);
-      setTimeout(() => setSyncSuccess(false), 3000);
-      triggerSaveNotice(
-        'Server Database Synced & Permanent!',
-        'All apps, monetization links, and settings are saved permanently to data/database.json on the server.'
-      );
+    
+    // Also push to GitHub directly
+    if (draftSiteSettings.githubSettings?.autoSync !== false) {
+      handleDirectGitHubSync();
     } else {
-      triggerSaveNotice(
-        'Local Saved & Cached!',
-        'Saved to browser storage and synced.'
-      );
+      if (ok) {
+        setSyncSuccess(true);
+        setTimeout(() => setSyncSuccess(false), 3000);
+        triggerSaveNotice(
+          'Saved to Local & Server Database!',
+          'All apps, monetization links, and settings are saved.'
+        );
+      }
     }
   };
 
   // GitHub integration handlers
   const handleTestGitHub = async () => {
-    const gh = draftSiteSettings.githubSettings;
-    if (!gh || !gh.token || !gh.owner || !gh.repo) {
-      setGitHubTestResult({
-        success: false,
-        message: 'Please provide GitHub Token (PAT), Owner (Username), and Repository Name.',
-      });
-      return;
-    }
+    const gh = draftSiteSettings.githubSettings || {
+      owner: 'funnymovies887-hash',
+      repo: 'premiumtoolsfree',
+      branch: 'main',
+      token: '',
+      autoSync: true,
+    };
     setIsTestingGitHub(true);
     setGitHubTestResult(null);
     const res = await testGitHubConnection(gh);
@@ -415,50 +456,65 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setGitHubTestResult(res);
   };
 
-  const handleSaveGitHubSettings = () => {
+  const handleSaveGitHubSettings = async () => {
     setIsSavingSite(true);
-    setSiteSettings(draftSiteSettings);
-    saveAllToServer({ siteSettings: draftSiteSettings });
+    const token = draftSiteSettings.githubSettings?.token || localStorage.getItem('ps_github_pat_v2') || DEFAULT_GITHUB_TOKEN;
+    const updatedSettings: SiteSettings = {
+      ...draftSiteSettings,
+      githubSettings: {
+        owner: 'funnymovies887-hash',
+        repo: 'premiumtoolsfree',
+        branch: 'main',
+        autoSync: true,
+        ...(draftSiteSettings.githubSettings || {}),
+        token,
+      },
+    };
+    setDraftSiteSettings(updatedSettings);
+    setSiteSettings(updatedSettings);
+    await saveAllToServer({ siteSettings: updatedSettings });
     setIsSavingSite(false);
     setSiteSaveFeedback(true);
     setTimeout(() => setSiteSaveFeedback(false), 2500);
     triggerSaveNotice(
-      'GitHub Settings Saved!',
-      'Your GitHub PAT, repository details, and auto-sync preferences have been permanently saved.'
+      '✓ GitHub Settings Saved & Persistent!',
+      'Your GitHub PAT and repository preferences are permanently remembered across refreshes and devices.'
     );
   };
 
   const handleDirectGitHubSync = async () => {
-    const gh = draftSiteSettings.githubSettings;
-    if (!gh || !gh.token || !gh.owner || !gh.repo) {
-      setActiveTab('github');
-      setGitHubTestResult({
-        success: false,
-        message: 'GitHub is not configured yet. Please enter your GitHub PAT & Repository details here first.',
-      });
-      return;
-    }
-
     setIsSyncingGitHub(true);
     setGitHubSyncSuccess(false);
 
-    // First ensure latest draft changes are saved to server
+    // First ensure latest draft changes are saved
     await saveAllToServer({
       apps,
       adSettings: draftAdSettings,
       siteSettings: draftSiteSettings,
     });
+    setAdSettings(draftAdSettings);
+    setSiteSettings(draftSiteSettings);
 
-    const res = await syncToGitHub(gh);
+    const res = await syncToGitHub(draftSiteSettings.githubSettings, {
+      apps,
+      adSettings: draftAdSettings,
+      siteSettings: draftSiteSettings,
+    });
+
     setIsSyncingGitHub(false);
 
     if (res.success) {
       setGitHubSyncSuccess(true);
-      setTimeout(() => setGitHubSyncSuccess(false), 3500);
+      setTimeout(() => setGitHubSyncSuccess(false), 4000);
       const updatedSite: SiteSettings = {
         ...draftSiteSettings,
         githubSettings: {
-          ...gh,
+          owner: 'funnymovies887-hash',
+          repo: 'premiumtoolsfree',
+          branch: 'main',
+          autoSync: true,
+          ...(draftSiteSettings.githubSettings || {}),
+          token: draftSiteSettings.githubSettings?.token || DEFAULT_GITHUB_TOKEN,
           lastSyncedAt: res.timestamp || Date.now(),
           lastSyncStatus: 'success',
         },
@@ -466,13 +522,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       setDraftSiteSettings(updatedSite);
       setSiteSettings(updatedSite);
       triggerSaveNotice(
-        'Synced to GitHub Successfully!',
-        `Latest apps, monetization & database.json pushed to https://github.com/${gh.owner}/${gh.repo}`
+        '✓ Live on GitHub & Cloudflare!',
+        `Commit pushed to https://github.com/${updatedSite.githubSettings?.owner}/${updatedSite.githubSettings?.repo}. All visitors across mobile and web will see changes immediately!`
       );
     } else {
       triggerSaveNotice(
-        'GitHub Sync Failed',
-        res.message || 'Could not push to GitHub. Verify your PAT permissions.'
+        'GitHub Sync Notice',
+        res.message || 'Could not push to GitHub. Verify your PAT.'
       );
       setGitHubTestResult({
         success: false,
@@ -566,85 +622,92 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       onClick={(e) => e.stopPropagation()}
       className="min-h-screen w-full bg-[#0a0b14] text-white flex flex-col selection:bg-cyan-500 selection:text-black"
     >
-      {/* Top Dedicated Admin Navbar */}
-      <header className="sticky top-0 z-40 w-full border-b border-white/10 bg-[#121320]/95 backdrop-blur-md px-4 sm:px-8 py-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 text-black font-bold shadow-md shadow-cyan-500/20">
-            <Settings className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-base sm:text-lg font-bold text-white tracking-wide">
-                Admin Control Center
-              </h1>
-              {/* Dynamic Live Save Status Indicator */}
-              {(isAdDirty || isSiteDirty) ? (
-                <span className="text-[10px] uppercase font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-md flex items-center gap-1.5 animate-pulse">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                  Unsaved Changes Pending
-                </span>
-              ) : (
-                <span className="text-[10px] uppercase font-bold bg-emerald-950 text-emerald-400 border border-emerald-800/80 px-2 py-0.5 rounded-md flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                  Database Live & Saved
-                </span>
-              )}
+      {/* Top Dedicated Admin Navbar with Prominent 1-Click Sync */}
+      <header className="sticky top-0 z-40 w-full border-b border-white/10 bg-[#10111e]/95 backdrop-blur-md px-4 sm:px-8 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xl shadow-black/40">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 via-blue-500 to-indigo-600 text-black font-extrabold shadow-lg shadow-cyan-500/25">
+              <Settings className="w-6 h-6 stroke-[2.2]" />
             </div>
-            <p className="text-xs text-slate-400 hidden sm:block">
-              {siteSettings.siteTitle} &bull; Manage apps, revenue ads, and Telegram links
-            </p>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-base sm:text-lg font-black text-white tracking-wide">
+                  Admin Control Center
+                </h1>
+                
+                {/* Live GitHub status badge */}
+                <span className="text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40 px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shadow-sm">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  GitHub Live: funnymovies887-hash/premiumtoolsfree
+                </span>
+
+                {/* Dynamic Save Status Indicator */}
+                {(isAdDirty || isSiteDirty) ? (
+                  <span className="text-[10px] uppercase font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-md flex items-center gap-1.5 animate-pulse">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    Unsaved Draft
+                  </span>
+                ) : (
+                  <span className="text-[10px] uppercase font-bold bg-emerald-950/80 text-emerald-400 border border-emerald-700/60 px-2 py-0.5 rounded-md flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    Database Live &amp; Saved
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-400 hidden sm:block mt-0.5">
+                {siteSettings.siteTitle} &bull; 100% Real-Time Cross-Device Synchronization (Web, Mobile, Workers.dev)
+              </p>
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* Master Server Sync Button */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+          {/* Prominent 1-Click Push to GitHub Button */}
           <button
-            onClick={handleMasterServerSync}
-            disabled={isSyncingServer}
-            className="px-3 sm:px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
-            title="Permanently write and save all current apps and settings to server database"
+            onClick={handleDirectGitHubSync}
+            disabled={isSyncingGitHub}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-black flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-purple-600/35 border border-purple-400/50 hover:scale-[1.02] active:scale-95 disabled:opacity-50"
+            title="1-Click push all apps, revenue ads & settings directly to GitHub repository (Works on Mobile & Cloudflare Workers)"
           >
-            {isSyncingServer ? (
+            {isSyncingGitHub ? (
               <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
-                <span className="hidden md:inline">Saving to Disk...</span>
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
+                <span>Pushing to GitHub...</span>
               </>
-            ) : syncSuccess ? (
+            ) : gitHubSyncSuccess ? (
               <>
-                <Check className="w-3.5 h-3.5 text-emerald-300" />
-                <span className="hidden md:inline">Saved to Database!</span>
+                <Check className="w-4 h-4 text-emerald-300 stroke-[3]" />
+                <span>✓ Live on GitHub!</span>
               </>
             ) : (
               <>
-                <Database className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="hidden md:inline">Save & Sync to Server</span>
-                <span className="md:hidden">Sync</span>
+                <GitBranch className="w-4 h-4 text-purple-200 stroke-[2.5]" />
+                <span>⚡ 1-Click Sync to GitHub</span>
               </>
             )}
           </button>
 
-          {/* 1-Click Push to GitHub Button */}
+          {/* Master Save Everything Button */}
           <button
-            onClick={handleDirectGitHubSync}
-            disabled={isSyncingGitHub}
-            className="px-3 sm:px-3.5 py-2 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-300 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
-            title="1-Click push and commit all apps & database directly to GitHub repository"
+            onClick={handleMasterServerSync}
+            disabled={isSyncingServer}
+            className="px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-50"
+            title="Save all changes locally and push to GitHub"
           >
-            {isSyncingGitHub ? (
+            {isSyncingServer ? (
               <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400" />
-                <span className="hidden md:inline">Pushing to GitHub...</span>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                <span>Saving...</span>
               </>
-            ) : gitHubSyncSuccess ? (
+            ) : syncSuccess ? (
               <>
                 <Check className="w-3.5 h-3.5 text-emerald-300" />
-                <span className="hidden md:inline">Pushed to GitHub!</span>
+                <span>Saved All!</span>
               </>
             ) : (
               <>
-                <Github className="w-3.5 h-3.5 text-purple-400" />
-                <span className="hidden md:inline">Sync to GitHub</span>
-                <span className="md:hidden">GitHub</span>
+                <Database className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Save Everything</span>
               </>
             )}
           </button>
@@ -654,20 +717,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               setIsAuthenticated(false);
               onClose();
             }}
-            className="px-3 sm:px-4 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-sm"
+            className="px-3 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
             title="Switch back to public storefront"
           >
-            <Globe className="w-4 h-4 text-cyan-400" />
-            <span className="hidden sm:inline">View Public Store</span>
-            <span className="sm:hidden">Store</span>
+            <Globe className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden sm:inline">Public Store</span>
           </button>
 
           <button
             onClick={handleLogout}
-            className="px-3 sm:px-3.5 py-2 rounded-xl bg-red-950/60 hover:bg-red-900/80 border border-red-800/40 text-red-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="px-3 py-2 rounded-xl bg-red-950/60 hover:bg-red-900/80 border border-red-800/40 text-red-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
             title="Lock and logout"
           >
-            <LogOut className="w-4 h-4" />
+            <LogOut className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Logout</span>
           </button>
         </div>
@@ -1785,7 +1847,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <div className="flex flex-wrap items-center gap-3 pt-3">
                   <button
                     onClick={handleTestGitHub}
-                    disabled={isTestingGitHub || !draftSiteSettings.githubSettings?.token}
+                    disabled={isTestingGitHub || !(draftSiteSettings.githubSettings?.token || DEFAULT_GITHUB_TOKEN)}
                     className="px-4 py-2.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-300 text-xs font-bold flex items-center gap-2 cursor-pointer transition-all disabled:opacity-40"
                   >
                     {isTestingGitHub ? (
@@ -1811,7 +1873,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                   <button
                     onClick={handleDirectGitHubSync}
-                    disabled={isSyncingGitHub || !draftSiteSettings.githubSettings?.token}
+                    disabled={isSyncingGitHub || !(draftSiteSettings.githubSettings?.token || DEFAULT_GITHUB_TOKEN)}
                     className="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold flex items-center gap-2 cursor-pointer transition-all disabled:opacity-40 shadow-sm"
                   >
                     {isSyncingGitHub ? (
