@@ -19,7 +19,7 @@
     {
       "id": "app-2",
       "name": "CapCut Pro PC No Watermark",
-      "logo": "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=200&auto=format&fit=crop&q=80",
+      "logo": "https://i.postimg.cc/25hNCVjL/image-search-1790267059054.webp",
       "category": "Video Editing",
       "description": "Full version with all VIP transitions, auto-captions, 4K 60FPS export without any watermark.",
       "version": "v5.1.0 PC",
@@ -158,5 +158,5 @@
       "lastSyncStatus": "success"
     }
   },
-  "updatedAt": 1790758785933
+  "updatedAt": 1790766263669
 }
