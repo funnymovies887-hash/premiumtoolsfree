@@ -82,7 +82,7 @@
     {
       "id": "app-6",
       "name": "ChatGPT Plus & AI Prompt Tools",
-      "logo": "https://images.unsplash.com/photo-1677442136019-21780efad99a?w=200&auto=format&fit=crop&q=80",
+      "logo": "https://i.postimg.cc/tJmM3jCF/image-search-1790267281591.jpg",
       "category": "AI & Productivity",
       "description": "Exclusive AI prompt suites, Telegram AI automation bots, and full access guides.",
       "version": "v2.5 Suite",
@@ -154,9 +154,9 @@
       "repo": "premiumtoolsfree",
       "branch": "main",
       "autoSync": true,
-      "lastSyncedAt": 1790783713834,
+      "lastSyncedAt": 1790783736459,
       "lastSyncStatus": "success"
     }
   },
-  "updatedAt": 1790783731479
+  "updatedAt": 1790783749162
 }
