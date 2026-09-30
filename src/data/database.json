@@ -51,7 +51,7 @@
     {
       "id": "app-4",
       "name": "Wondershare Filmora 13 VIP",
-      "logo": "https://images.unsplash.com/photo-1536240478700-b869070f9279?w=200&auto=format&fit=crop&q=80",
+      "logo": "https://i.postimg.cc/jdFpNzL1/image-search-1790267155879.jpg",
       "category": "Video Editing",
       "description": "All AI effects unlocked, speed ramping, keyframe audio ducking, and no subscription required.",
       "version": "v13.6.4",
@@ -154,9 +154,9 @@
       "repo": "premiumtoolsfree",
       "branch": "main",
       "autoSync": true,
-      "lastSyncedAt": 1790783561412,
+      "lastSyncedAt": 1790783648239,
       "lastSyncStatus": "success"
     }
   },
-  "updatedAt": 1790783644452
+  "updatedAt": 1790783710141
 }
