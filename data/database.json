@@ -35,7 +35,7 @@
     {
       "id": "app-3",
       "name": "Adobe Photoshop 2025 Pre-Activated",
-      "logo": "https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?w=200&auto=format&fit=crop&q=80",
+      "logo": "https://i.postimg.cc/RhCk1d7p/image-search-1790267123937.png",
       "category": "Design & Creative",
       "description": "Full lifetime activated Photoshop with Generative Fill AI, Neural filters, and multilingual package.",
       "version": "v26.0 Multilingual",
@@ -154,9 +154,9 @@
       "repo": "premiumtoolsfree",
       "branch": "main",
       "autoSync": true,
-      "lastSyncedAt": 1790783553192,
+      "lastSyncedAt": 1790783561412,
       "lastSyncStatus": "success"
     }
   },
-  "updatedAt": 1790783557070
+  "updatedAt": 1790783644452
 }
