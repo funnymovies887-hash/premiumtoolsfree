@@ -97,7 +97,7 @@
     {
       "id": "app-7",
       "name": "NordVPN Premium Unlimited",
-      "logo": "https://images.unsplash.com/photo-1563986768609-322da13575f3?w=200&auto=format&fit=crop&q=80",
+      "logo": "https://i.postimg.cc/X7mPX4Pn/image-search-1790267313798.jpg",
       "category": "Security & VPN",
       "description": "High speed 10Gbps servers across 60+ countries, Threat Protection, and Zero-Log DNS.",
       "version": "v7.19.2",
@@ -154,9 +154,9 @@
       "repo": "premiumtoolsfree",
       "branch": "main",
       "autoSync": true,
-      "lastSyncedAt": 1790783736459,
+      "lastSyncedAt": 1790783753168,
       "lastSyncStatus": "success"
     }
   },
-  "updatedAt": 1790783749162
+  "updatedAt": 1790783767509
 }
