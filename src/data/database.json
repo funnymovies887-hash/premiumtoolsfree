@@ -149,14 +149,14 @@
     "announcement": "🔥 New Premium Tools Added! Join our Telegram Channel for direct updates & instant software keys.",
     "adminPassword": "Aa123456@",
     "githubSettings": {
-      "token": "",
       "owner": "funnymovies887-hash",
       "repo": "premiumtoolsfree",
       "branch": "main",
       "autoSync": true,
+      "token": "",
       "lastSyncedAt": 1790671680573,
       "lastSyncStatus": "success"
     }
   },
-  "updatedAt": 1790756374214
+  "updatedAt": 1790757088282
 }
