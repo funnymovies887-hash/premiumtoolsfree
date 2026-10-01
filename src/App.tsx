@@ -26,6 +26,7 @@ const checkIsAdminUrl = (): boolean => {
   const path = window.location.pathname.toLowerCase();
   const search = window.location.search.toLowerCase();
   const hash = window.location.hash.toLowerCase();
+  const savedView = sessionStorage.getItem('ps_current_view');
   return (
     path === '/admin' ||
     path === '/admin/' ||
@@ -36,8 +37,25 @@ const checkIsAdminUrl = (): boolean => {
     search.includes('admin=true') ||
     search.includes('?admin') ||
     search.includes('&admin') ||
-    hash.includes('admin')
+    hash.includes('admin') ||
+    savedView === 'admin'
   );
+};
+
+const getInitialSelectedApp = (): AppItem | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const search = new URLSearchParams(window.location.search);
+    const idFromSearch = search.get('id');
+    const hash = window.location.hash;
+    const idFromHash = hash.startsWith('#app-') ? hash.replace('#app-', '') : null;
+    const targetId = idFromSearch || idFromHash || sessionStorage.getItem('ps_active_app_id');
+    if (targetId) {
+      const stored = getStoredApps();
+      return stored.find((a) => a.id === targetId) || null;
+    }
+  } catch {}
+  return null;
 };
 
 export default function App() {
@@ -47,9 +65,32 @@ export default function App() {
   const [siteSettings, setSiteSettingsState] = useState<SiteSettings>(getSiteSettings);
   const [isAuthenticated, setIsAuthenticatedState] = useState<boolean>(() => isAdminAuthenticated());
 
-  const [selectedApp, setSelectedApp] = useState<AppItem | null>(null);
+  const [selectedApp, setSelectedApp] = useState<AppItem | null>(getInitialSelectedApp);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [selectedCategory, setSelectedCategoryState] = useState<string>(() => {
+    if (typeof window === 'undefined') return 'All';
+    try {
+      const search = new URLSearchParams(window.location.search);
+      const cat = search.get('category');
+      return cat || sessionStorage.getItem('ps_selected_category') || 'All';
+    } catch {
+      return 'All';
+    }
+  });
+
+  const setSelectedCategory = (cat: string) => {
+    setSelectedCategoryState(cat);
+    try {
+      sessionStorage.setItem('ps_selected_category', cat);
+      const url = new URL(window.location.href);
+      if (cat === 'All') {
+        url.searchParams.delete('category');
+      } else {
+        url.searchParams.set('category', cat);
+      }
+      window.history.pushState({}, '', url.toString());
+    } catch {}
+  };
 
   // Persistence wrappers
   const setApps = (newApps: AppItem[]) => {
@@ -72,42 +113,34 @@ export default function App() {
     setAdminAuthenticated(auth);
   };
 
-  // Route switcher with clean URL navigation to ensure zero ad scripts running in admin mode
+  // Route switcher with clean URL navigation that preserves position on refresh without 404s
   const navigateTo = (view: 'store' | 'admin') => {
     (window as any).__IS_ADMIN_MODE = (view === 'admin');
-    if (typeof window !== 'undefined') {
-      try {
-        if (view === 'admin' && currentView !== 'admin') {
-          window.location.href = '/admin';
-          return;
-        }
-        if (view === 'store' && currentView !== 'store') {
-          window.location.href = '/';
-          return;
-        }
-      } catch {}
-    }
     setCurrentView(view);
+    try {
+      sessionStorage.setItem('ps_current_view', view);
+    } catch {}
+
     if (view === 'store') {
       setIsAuthenticatedState(false);
       setAdminAuthenticated(false);
     }
+
     try {
-      if (view === 'admin') {
-        window.history.pushState({ view: 'admin' }, '', '/admin');
-      } else {
-        window.history.pushState({ view: 'store' }, '', '/');
-      }
-    } catch {
       const url = new URL(window.location.href);
       if (view === 'admin') {
         url.searchParams.set('page', 'admin');
+        window.history.pushState({ view: 'admin' }, '', url.toString());
       } else {
         url.searchParams.delete('page');
         url.searchParams.delete('admin');
+        if (url.pathname.includes('/admin')) {
+          window.history.pushState({ view: 'store' }, '', '/' + (url.search || ''));
+        } else {
+          window.history.pushState({ view: 'store' }, '', url.toString());
+        }
       }
-      window.history.pushState({}, '', url.toString());
-    }
+    } catch {}
   };
 
   // Synchronize global Admin Mode state for ad blocking shield
@@ -252,26 +285,22 @@ export default function App() {
     }
 
     setSelectedApp(app);
-
-    // Update browser URL silently
     try {
+      sessionStorage.setItem('ps_active_app_id', app.id);
       const url = new URL(window.location.href);
       url.searchParams.set('id', app.id);
-      window.history.pushState({}, '', url.toString());
-    } catch {
-      // Ignore in strict iframes
-    }
+      window.history.pushState({ appId: app.id }, '', url.toString());
+    } catch {}
   };
 
   const handleCloseDownload = () => {
     setSelectedApp(null);
     try {
+      sessionStorage.removeItem('ps_active_app_id');
       const url = new URL(window.location.href);
       url.searchParams.delete('id');
       window.history.pushState({}, '', url.toString());
-    } catch {
-      // Ignore
-    }
+    } catch {}
   };
 
   // If current view is standalone Master Admin Panel

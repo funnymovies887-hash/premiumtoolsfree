@@ -32,7 +32,14 @@ import {
   Sparkles
 } from 'lucide-react';
 import { AppItem, AdSettings, SiteSettings, GitHubSettings } from '../types';
-import { saveAllToServer, testGitHubConnection, syncToGitHub, DEFAULT_GITHUB_TOKEN } from '../utils/storage';
+import { 
+  saveAllToServer, 
+  testGitHubConnection, 
+  syncToGitHub, 
+  DEFAULT_GITHUB_TOKEN,
+  recordDeletedAppId,
+  removeDeletedAppId
+} from '../utils/storage';
 
 // Popular high-resolution verified presets for apps & software
 const PRESET_APP_LOGOS = [
@@ -119,8 +126,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
 
-  // Active Tab
-  const [activeTab, setActiveTab] = useState<'apps' | 'monetization' | 'site' | 'github' | 'backup'>('apps');
+  // Active Tab with refresh persistence
+  const [activeTab, setActiveTabState] = useState<'apps' | 'monetization' | 'site' | 'github' | 'backup'>(() => {
+    try {
+      return (sessionStorage.getItem('ps_admin_tab') as any) || 'apps';
+    } catch {
+      return 'apps';
+    }
+  });
+
+  const setActiveTab = (tab: 'apps' | 'monetization' | 'site' | 'github' | 'backup') => {
+    setActiveTabState(tab);
+    try {
+      sessionStorage.setItem('ps_admin_tab', tab);
+    } catch {}
+  };
 
   // Draft working states for Monetization and Site settings to detect changes
   const [draftAdSettings, setDraftAdSettings] = useState<AdSettings>(adSettings);
@@ -262,26 +282,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const confirmDeleteApp = async () => {
     if (!appToDelete) return;
     const targetName = appToDelete.name;
-    const updated = apps.filter((a) => a.id !== appToDelete.id);
+    const targetId = appToDelete.id;
+
+    // Blacklist/record deleted app so no stale cached CDN fetch can restore it
+    recordDeletedAppId(targetId);
+
+    const updated = apps.filter((a) => a.id !== targetId);
     setApps(updated);
+
+    setIsSyncingServer(true);
     await saveAllToServer({ apps: updated });
 
-    // Auto-commit to GitHub so change is immediately live for all users on mobile/web
-    if (draftSiteSettings.githubSettings?.autoSync !== false) {
-      syncToGitHub(undefined, { apps: updated }).then((res) => {
-        if (res.success) {
-          triggerSaveNotice(
-            '✓ Deleted & Synced to GitHub Live!',
-            `"${targetName}" was permanently removed and synced to GitHub repo for all users.`
-          );
-        }
-      }).catch(() => {});
-    } else {
-      triggerSaveNotice(
-        'App Permanently Deleted!',
-        `"${targetName}" has been erased from the public store and database.`
-      );
-    }
+    // Always push deletion immediately to GitHub so it is removed everywhere
+    await syncToGitHub(undefined, { apps: updated });
+    setIsSyncingServer(false);
+
+    triggerSaveNotice(
+      '✓ App Permanently Erased & Live on GitHub!',
+      `"${targetName}" was permanently removed from database & GitHub. It will never return on refresh!`
+    );
     setAppToDelete(null);
   };
 
@@ -324,6 +343,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
     setAppValidationError('');
 
+    // Remove from deleted list in case it was previously deleted
+    removeDeletedAppId(appData.id);
+
     setIsSavingApp(true);
     let updated: AppItem[];
     if (isCreatingNew) {
@@ -344,19 +366,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     await saveAllToServer({ apps: updated });
 
     // Auto-commit to GitHub so all users see new apps immediately
-    if (draftSiteSettings.githubSettings?.autoSync !== false) {
-      syncToGitHub(undefined, { apps: updated }).then((res) => {
-        if (res.success) {
-          triggerSaveNotice(
-            '✓ Saved & Synced to GitHub Live!',
-            `"${appData.name}" is now live on GitHub and Cloudflare for all users across devices!`
-          );
-        }
-      }).catch(() => {});
-    }
-
+    const res = await syncToGitHub(undefined, { apps: updated });
     setIsSavingApp(false);
     setAppSaveFeedback(true);
+
+    if (res.success) {
+      triggerSaveNotice(
+        '✓ Saved & Live Everywhere!',
+        `"${appData.name}" is now live on GitHub and Cloudflare for all users across devices!`
+      );
+    }
 
     setTimeout(() => {
       setAppSaveFeedback(false);
@@ -371,17 +390,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setIsSavingAd(true);
     setAdSettings(draftAdSettings);
     await saveAllToServer({ adSettings: draftAdSettings });
-
-    if (draftSiteSettings.githubSettings?.autoSync !== false) {
-      syncToGitHub(undefined, { adSettings: draftAdSettings }).catch(() => {});
-    }
+    const res = await syncToGitHub(undefined, { adSettings: draftAdSettings });
 
     setIsSavingAd(false);
     setAdSaveFeedback(true);
     setTimeout(() => setAdSaveFeedback(false), 2500);
     triggerSaveNotice(
       '✓ Adsterra & Monetag Settings Saved!',
-      'Direct ad links, CPM banners, popunders, and header scripts are saved and synced to GitHub.'
+      res.success ? 'Direct ad links, CPM banners, popunders, and header scripts are live on GitHub.' : 'Saved to database.'
     );
   };
 
@@ -395,17 +411,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setIsSavingSite(true);
     setSiteSettings(draftSiteSettings);
     await saveAllToServer({ siteSettings: draftSiteSettings });
-
-    if (draftSiteSettings.githubSettings?.autoSync !== false) {
-      syncToGitHub(undefined, { siteSettings: draftSiteSettings }).catch(() => {});
-    }
+    const res = await syncToGitHub(undefined, { siteSettings: draftSiteSettings });
 
     setIsSavingSite(false);
     setSiteSaveFeedback(true);
     setTimeout(() => setSiteSaveFeedback(false), 2500);
     triggerSaveNotice(
       '✓ Site & Telegram Settings Saved!',
-      'Store title, subtitle, Telegram channel URL, and admin password are saved and synced to GitHub.'
+      res.success ? 'Store title, Telegram channel URL, and admin password are live on GitHub.' : 'Saved to database.'
     );
   };
 

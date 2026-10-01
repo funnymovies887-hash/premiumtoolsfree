@@ -184,7 +184,35 @@ const STORAGE_KEYS = {
   ADMIN_SESSION: "ps_admin_session_auth",
   POPUNDER_LAST_TRIGGER: "ps_popunder_last_trigger",
   GITHUB_PAT: "ps_github_pat_v2",
+  LAST_UPDATED_AT: "ps_last_updated_at",
+  DELETED_APPS: "ps_deleted_app_ids_v1",
 };
+
+export function getDeletedAppIds(): string[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.DELETED_APPS);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function recordDeletedAppId(id: string): void {
+  try {
+    const ids = getDeletedAppIds();
+    if (!ids.includes(id)) {
+      ids.push(id);
+      localStorage.setItem(STORAGE_KEYS.DELETED_APPS, JSON.stringify(ids));
+    }
+  } catch {}
+}
+
+export function removeDeletedAppId(id: string): void {
+  try {
+    const ids = getDeletedAppIds().filter((i) => i !== id);
+    localStorage.setItem(STORAGE_KEYS.DELETED_APPS, JSON.stringify(ids));
+  } catch {}
+}
 
 // Safe Unicode to Base64 encoder for browser & node environments
 function encodeUtf8Base64(str: string): string {
@@ -201,27 +229,30 @@ function encodeUtf8Base64(str: string): string {
 export function getStoredApps(): AppItem[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.APPS);
-    if (!raw) {
-      saveStoredApps(INITIAL_APPS);
-      return INITIAL_APPS;
+    const deletedIds = getDeletedAppIds();
+    if (raw === null) {
+      const initial = INITIAL_APPS.filter((app) => !deletedIds.includes(app.id));
+      saveStoredApps(initial);
+      return initial;
     }
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length > 0) {
+    if (Array.isArray(parsed)) {
       let migrated = false;
-      const apps = parsed.map((app: AppItem) => {
-        if (app.adLink === OLD_AD_LINK) {
-          migrated = true;
-          return { ...app, adLink: DEFAULT_AD_LINK };
-        }
-        return app;
-      });
+      const apps = parsed
+        .filter((app: AppItem) => !deletedIds.includes(app.id))
+        .map((app: AppItem) => {
+          if (app.adLink === OLD_AD_LINK) {
+            migrated = true;
+            return { ...app, adLink: DEFAULT_AD_LINK };
+          }
+          return app;
+        });
       if (migrated) {
         saveStoredApps(apps);
       }
       return apps;
     }
-    saveStoredApps(INITIAL_APPS);
-    return INITIAL_APPS;
+    return INITIAL_APPS.filter((app) => !deletedIds.includes(app.id));
   } catch (err) {
     console.error("Error reading apps from storage", err);
     return INITIAL_APPS;
@@ -230,11 +261,13 @@ export function getStoredApps(): AppItem[] {
 
 export function saveStoredApps(apps: AppItem[]): void {
   try {
+    const now = Date.now();
     localStorage.setItem(STORAGE_KEYS.APPS, JSON.stringify(apps));
+    localStorage.setItem(STORAGE_KEYS.LAST_UPDATED_AT, now.toString());
     fetch('/api/apps', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ apps }),
+      body: JSON.stringify({ apps, updatedAt: now }),
     }).catch(() => {});
   } catch (err) {
     console.error("Error saving apps to storage", err);
@@ -333,10 +366,19 @@ export interface ServerDataResponse {
   updatedAt?: number;
 }
 
-// Applies fetched database to local storage
+// Applies fetched database to local storage with timestamp conflict protection
 function applyDataToStorage(data: ServerDataResponse): void {
-  if (Array.isArray(data.apps) && data.apps.length > 0) {
-    localStorage.setItem(STORAGE_KEYS.APPS, JSON.stringify(data.apps));
+  const localSavedAt = parseInt(localStorage.getItem(STORAGE_KEYS.LAST_UPDATED_AT) || '0', 10);
+  // If local edits were made more recently than the incoming data's timestamp, do NOT overwrite them!
+  if (data.updatedAt && localSavedAt && data.updatedAt < localSavedAt) {
+    return;
+  }
+
+  const deletedIds = getDeletedAppIds();
+
+  if (Array.isArray(data.apps)) {
+    const validApps = data.apps.filter((app) => !deletedIds.includes(app.id));
+    localStorage.setItem(STORAGE_KEYS.APPS, JSON.stringify(validApps));
   }
   if (data.adSettings) {
     localStorage.setItem(STORAGE_KEYS.ADS, JSON.stringify(data.adSettings));
@@ -393,13 +435,17 @@ export async function fetchServerData(): Promise<ServerDataResponse | null> {
   return null;
 }
 
-// Save all data to localStorage and local backend
+// Save all data to localStorage, local backend, and auto-sync to GitHub
 export async function saveAllToServer(payload: {
   apps?: AppItem[];
   adSettings?: AdSettings;
   siteSettings?: SiteSettings;
+  triggerGitHub?: boolean;
 }): Promise<boolean> {
   try {
+    const now = Date.now();
+    localStorage.setItem(STORAGE_KEYS.LAST_UPDATED_AT, now.toString());
+
     if (payload.apps) {
       localStorage.setItem(STORAGE_KEYS.APPS, JSON.stringify(payload.apps));
     }
@@ -413,14 +459,21 @@ export async function saveAllToServer(payload: {
       localStorage.setItem(STORAGE_KEYS.SITE, JSON.stringify(payload.siteSettings));
     }
 
-    // Try posting to local server if available
+    // Post to local server if available
     try {
       await fetch('/api/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, updatedAt: now }),
       });
     } catch {}
+
+    // Auto-commit to GitHub so save button works identically to the 1-click sync button!
+    if (payload.triggerGitHub !== false) {
+      syncToGitHub(undefined, payload).catch((e) => {
+        console.warn('Background GitHub sync from saveAllToServer:', e);
+      });
+    }
 
     return true;
   } catch (err) {
